@@ -1,0 +1,16 @@
+# Python/runtime noise
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# Local MuJoCo assets and generated rollout artifacts
+assets/
+datasets/
+
+# Debug/review-only helper scripts. These are local probes, not core pipeline.
+scripts/*_debug.py
+data/*_debug.py
+tests/*_debug.py
+docs/debug_review_helpers.md
+docs/superpowers/
