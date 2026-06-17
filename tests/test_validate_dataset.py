@@ -3,6 +3,7 @@ import numpy as np
 from data.dataset_writer import DatasetWriter
 from robo_trot.a1_constants import ACTION_SCALE, Q_HOME
 from scripts.validate_dataset import validate_dataset
+from scripts.inspect_dataset import inspect_dataset
 from tests.test_dataset_writer import make_episode
 
 
@@ -182,6 +183,49 @@ def test_validate_dataset_rejects_episode_without_initial_reset_flag(tmp_path):
 
     assert not result.ok
     assert any("reset_flag[0]" in message for message in result.errors)
+
+
+def test_inspect_dataset_summarizes_sharded_manifest(tmp_path):
+    (tmp_path / "dataset_manifest.json").write_text(
+        """
+        {
+          "accepted_steps": 19,
+          "accepted_episodes": 3,
+          "target_steps": 18,
+          "category_steps": {"forward": 11, "turn": 8},
+          "shard_count": 2,
+          "rejection_counts": {"foot_sliding": 1},
+          "shards": [
+            {
+              "name": "shard_00_forward",
+              "category": "forward",
+              "target_steps": 10,
+              "accepted_steps": 11,
+              "accepted_episodes": 2,
+              "attempted_episodes": 3,
+              "rejection_counts": {"foot_sliding": 1}
+            },
+            {
+              "name": "shard_04_turn",
+              "category": "turn",
+              "target_steps": 8,
+              "accepted_steps": 8,
+              "accepted_episodes": 1,
+              "attempted_episodes": 1,
+              "rejection_counts": {}
+            }
+          ]
+        }
+        """
+    )
+
+    report = inspect_dataset(tmp_path)
+
+    assert "sharded dataset: True" in report
+    assert "total transitions: 19" in report
+    assert "target transitions: 18" in report
+    assert "category transitions: forward=11, turn=8" in report
+    assert "fall/reject count: 1" in report
 
 
 def test_validate_dataset_rejects_mid_episode_reset_flag(tmp_path):

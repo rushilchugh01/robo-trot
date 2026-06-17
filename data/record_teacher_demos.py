@@ -36,6 +36,33 @@ COMMAND_PROFILES = {
     },
 }
 
+CATEGORY_COMMAND_RANGES = {
+    "forward": {
+        "teacher_profile": "strict_walk",
+        "vx": (0.2, 0.7),
+        "yaw": (-0.1, 0.1),
+        "require_yaw_response": False,
+    },
+    "turn": {
+        "teacher_profile": "turn_walk",
+        "vx": (0.1, 0.55),
+        "yaw_abs": (0.35, 0.8),
+        "require_yaw_response": True,
+    },
+    "slow": {
+        "teacher_profile": "strict_walk",
+        "vx": (0.0, 0.2),
+        "yaw": (-0.2, 0.2),
+        "require_yaw_response": False,
+    },
+    "fast_probe": {
+        "teacher_profile": "strict_walk",
+        "vx": (0.7, 0.9),
+        "yaw": (-0.08, 0.08),
+        "require_yaw_response": False,
+    },
+}
+
 FOOTSPACE_TEACHER_PROFILES = {
     "strict_walk": {
         "max_freq": 2.8,
@@ -74,6 +101,19 @@ def sample_command(rng: np.random.Generator, profile: str = "default") -> tuple[
         return np.array([rng.uniform(*vx_range), 0.0, rng.uniform(*yaw_range)], dtype=np.float32), "slow"
     vx_range, yaw_range = ranges["turning"]
     return np.array([rng.uniform(*vx_range), 0.0, rng.uniform(*yaw_range)], dtype=np.float32), "turning"
+
+
+def sample_category_command(rng: np.random.Generator, category: str) -> tuple[np.ndarray, str]:
+    if category not in CATEGORY_COMMAND_RANGES:
+        raise ValueError(f"Unknown command category: {category}")
+    spec = CATEGORY_COMMAND_RANGES[category]
+    vx = float(rng.uniform(*spec["vx"]))
+    if "yaw_abs" in spec:
+        yaw = float(rng.uniform(*spec["yaw_abs"]))
+        yaw *= -1.0 if float(rng.random()) < 0.5 else 1.0
+    else:
+        yaw = float(rng.uniform(*spec["yaw"]))
+    return np.array([vx, 0.0, yaw], dtype=np.float32), category
 
 
 def parse_fixed_command(values: list[float] | None) -> np.ndarray | None:
@@ -323,11 +363,14 @@ def rollout_episode(
     gif_width: int = 320,
     gif_height: int = 180,
     command_profile: str = "default",
+    command_category: str | None = None,
 ) -> tuple[dict[str, np.ndarray], list[np.ndarray], dict[str, Any]]:
     del debug_failed_gifs
     env.reset(seed=int(rng.integers(0, 2**31 - 1)))
     teacher.reset(rng)
-    if fixed_command is None:
+    if fixed_command is None and command_category is not None:
+        command, command_kind = sample_category_command(rng, command_category)
+    elif fixed_command is None:
         command, command_kind = sample_command(rng, profile=command_profile)
     else:
         command = fixed_command.astype(np.float32).copy()
@@ -343,7 +386,10 @@ def rollout_episode(
 
     for step in range(episode_steps):
         if fixed_command is None and step > 0 and step >= next_switch_step:
-            command, command_kind = sample_command(rng, profile=command_profile)
+            if command_category is not None:
+                command, command_kind = sample_category_command(rng, command_category)
+            else:
+                command, command_kind = sample_command(rng, profile=command_profile)
             next_switch_step = step + int(rng.integers(100, 251))
         state = env.get_state()
         output = teacher.compute(state, command)
@@ -396,7 +442,12 @@ def run_recording(args: argparse.Namespace) -> None:
     env = A1TeacherEnv(args.xml_path, {"use_contacts": args.use_contacts})
     teacher = make_teacher(args.teacher, args.xml_path, env.policy_dt, profile=args.teacher_profile)
     fixed_command = parse_fixed_command(args.fixed_command)
-    require_yaw_response = bool(args.require_yaw_response or args.command_profile == "turn_probe")
+    category_config = CATEGORY_COMMAND_RANGES.get(args.command_category, {}) if args.command_category else {}
+    require_yaw_response = bool(
+        args.require_yaw_response
+        or args.command_profile == "turn_probe"
+        or bool(category_config.get("require_yaw_response", False))
+    )
     obs_dim = OBS_DIM_WITH_CONTACTS if args.use_contacts else OBS_DIM_NO_CONTACTS
     writer = DatasetWriter(
         args.out_dir,
@@ -413,6 +464,8 @@ def run_recording(args: argparse.Namespace) -> None:
             "teacher_config": FOOTSPACE_TEACHER_PROFILES.get(args.teacher_profile, {}) if args.teacher == "footspace" else {},
             "command_profile": args.command_profile,
             "command_profile_config": COMMAND_PROFILES[args.command_profile],
+            "command_category": args.command_category,
+            "command_category_config": category_config,
             "acceptance": {
                 "clip_limit": float(args.clip_limit),
                 "min_foot_clearance": float(args.min_foot_clearance),
@@ -451,6 +504,7 @@ def run_recording(args: argparse.Namespace) -> None:
             gif_width=args.gif_width,
             gif_height=args.gif_height,
             command_profile=args.command_profile,
+            command_category=args.command_category,
         )
         accepted, reject_reason = should_accept(
             episode,
@@ -555,6 +609,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--teacher", choices=("footspace",), default="footspace")
     parser.add_argument("--teacher_profile", choices=tuple(FOOTSPACE_TEACHER_PROFILES), default="strict_walk")
     parser.add_argument("--command_profile", choices=tuple(COMMAND_PROFILES), default="default")
+    parser.add_argument("--command_category", choices=tuple(CATEGORY_COMMAND_RANGES), default=None)
     parser.add_argument("--fixed_command", nargs=3, type=float, default=None, metavar=("VX", "VY", "YAW"))
     parser.add_argument("--clip_limit", type=float, default=0.25)
     parser.add_argument("--min_foot_clearance", type=float, default=DEFAULT_MIN_FOOT_CLEARANCE)

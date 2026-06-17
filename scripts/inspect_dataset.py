@@ -13,7 +13,49 @@ def load_episode_paths(dataset_dir: Path) -> list[Path]:
     return sorted((dataset_dir / "episodes").glob("ep_*.npz"))
 
 
+def inspect_sharded_dataset(dataset_dir: Path) -> str:
+    manifest = json.loads((dataset_dir / "dataset_manifest.json").read_text())
+    category_steps = manifest.get("category_steps", {})
+    category_text = ", ".join(f"{category}={int(steps)}" for category, steps in sorted(category_steps.items()))
+    shards = manifest.get("shards", [])
+    attempted = sum(int(shard.get("attempted_episodes", 0)) for shard in shards)
+    accepted = sum(int(shard.get("accepted_episodes", 0)) for shard in shards)
+    rejection_counts = manifest.get("rejection_counts", {})
+    reject_count = sum(int(count) for count in rejection_counts.values())
+    if attempted:
+        reject_count = max(reject_count, attempted - accepted)
+    reject_rate = 100.0 * float(reject_count / attempted) if attempted > 0 else 0.0
+    quality = manifest.get("quality", {})
+    lines = [
+        f"dataset: {dataset_dir}",
+        "sharded dataset: True",
+        f"shard count: {int(manifest.get('shard_count', len(shards)))}",
+        f"total transitions: {int(manifest.get('accepted_steps', 0))}",
+        f"target transitions: {int(manifest.get('target_steps', 0))}",
+        f"number of episodes: {int(manifest.get('accepted_episodes', accepted))}",
+        f"category transitions: {category_text}",
+        f"fall/reject count: {reject_count}",
+        f"fall/reject rate: {reject_rate:.3f}%",
+    ]
+    if quality:
+        lines.extend(
+            [
+                f"clip fraction mean: {float(quality.get('clip_fraction_mean', 0.0)):.6f}",
+                f"contact slip mean: {float(quality.get('contact_slip_mean', 0.0)):.4f}",
+                f"contact slip p95 mean: {float(quality.get('contact_slip_p95_mean', 0.0)):.4f}",
+                f"yaw delta abs mean: {float(quality.get('yaw_delta_abs_mean', 0.0)):.4f}",
+                f"yaw rate abs mean: {float(quality.get('yaw_rate_abs_mean', 0.0)):.4f}",
+            ]
+        )
+    if rejection_counts:
+        reason_text = ", ".join(f"{reason}={int(count)}" for reason, count in sorted(rejection_counts.items()))
+        lines.append(f"reject reasons: {reason_text}")
+    return "\n".join(lines)
+
+
 def inspect_dataset(dataset_dir: Path) -> str:
+    if (dataset_dir / "dataset_manifest.json").exists():
+        return inspect_sharded_dataset(dataset_dir)
     paths = load_episode_paths(dataset_dir)
     metadata_path = dataset_dir / "metadata.json"
     metadata = json.loads(metadata_path.read_text()) if metadata_path.exists() else {}

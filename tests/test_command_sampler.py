@@ -1,7 +1,15 @@
 import numpy as np
 from pathlib import Path
 
-from data.record_teacher_demos import contact_slip_metrics, make_teacher, parse_fixed_command, sample_command, should_accept
+from data.record_teacher_demos import (
+    CATEGORY_COMMAND_RANGES,
+    contact_slip_metrics,
+    make_teacher,
+    parse_fixed_command,
+    sample_category_command,
+    sample_command,
+    should_accept,
+)
 
 
 XML_PATH = Path("assets/mujoco_menagerie/unitree_a1/scene.xml")
@@ -62,6 +70,33 @@ def test_fast_probe_command_profile_samples_higher_forward_speeds():
             assert 0.5 <= command[0] <= 0.9
             seen_high = seen_high or bool(command[0] > 0.75)
     assert seen_high
+
+
+def test_sample_category_command_uses_exact_5m_category_ranges():
+    rng = np.random.default_rng(123)
+    for category, spec in CATEGORY_COMMAND_RANGES.items():
+        for _ in range(100):
+            command, kind = sample_category_command(rng, category)
+            assert kind == category
+            assert command.shape == (3,)
+            assert command.dtype == np.float32
+            assert spec["vx"][0] <= command[0] <= spec["vx"][1]
+            assert command[1] == 0.0
+            if "yaw_abs" in spec:
+                assert spec["yaw_abs"][0] <= abs(float(command[2])) <= spec["yaw_abs"][1]
+            else:
+                assert spec["yaw"][0] <= command[2] <= spec["yaw"][1]
+
+
+def test_sample_category_command_rejects_unknown_category():
+    rng = np.random.default_rng(123)
+
+    try:
+        sample_category_command(rng, "bad_category")
+    except ValueError as exc:
+        assert "Unknown command category" in str(exc)
+    else:
+        raise AssertionError("sample_category_command should reject unknown categories")
 
 
 def test_make_teacher_applies_footspace_speed_profile():

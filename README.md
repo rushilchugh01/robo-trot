@@ -51,3 +51,24 @@ The recorder and viewer support explicit profiles:
 - `--command_profile default`: normal collection envelope.
 
 The chosen profiles and resolved configs are written to `metadata.json`.
+
+## Sharded 5M Generation
+
+For large no-GIF generation, use the sharded launcher. It runs independent shard processes so workers never share one `metadata.json`.
+
+```bash
+python data/launch_5m_shards.py \
+  --out_dir datasets/a1_teacher_flat_5m_v001 \
+  --workers 8
+python data/build_5m_manifest.py datasets/a1_teacher_flat_5m_v001
+python scripts/inspect_dataset.py datasets/a1_teacher_flat_5m_v001
+```
+
+The default 5M composition is:
+
+- forward: 3.00M transitions
+- turn: 1.00M transitions
+- slow: 0.75M transitions
+- fast_probe: 0.25M transitions
+
+Media export is disabled in the shard launcher.
