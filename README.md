@@ -59,7 +59,8 @@ For large no-GIF generation, use the sharded launcher. It runs independent shard
 ```bash
 python data/launch_5m_shards.py \
   --out_dir datasets/a1_teacher_flat_5m_v001 \
-  --workers 8
+  --workers 8 \
+  --total_steps 5000000
 python data/build_5m_manifest.py datasets/a1_teacher_flat_5m_v001
 python scripts/inspect_dataset.py datasets/a1_teacher_flat_5m_v001
 ```
@@ -72,3 +73,12 @@ The default 5M composition is:
 - fast_probe: 0.25M transitions
 
 Media export is disabled in the shard launcher.
+
+For a 7M run with the same composition ratios:
+
+```bash
+python data/launch_5m_shards.py \
+  --out_dir datasets/a1_teacher_flat_7m_v001 \
+  --workers 8 \
+  --total_steps 7000000
+```

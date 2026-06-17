@@ -33,6 +33,25 @@ def category_step_totals(shards: list[dict[str, Any]]) -> dict[str, int]:
     return totals
 
 
+def shards_for_total(total_steps: int, base_shards: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    base = base_shards or SHARDS
+    base_total = total_target_steps(base)
+    if int(total_steps) <= 0:
+        raise ValueError("--total_steps must be positive")
+    scaled: list[dict[str, Any]] = []
+    assigned = 0
+    for index, shard in enumerate(base):
+        item = dict(shard)
+        if index == len(base) - 1:
+            target = int(total_steps) - assigned
+        else:
+            target = int(round(int(shard["target_steps"]) * int(total_steps) / base_total))
+            assigned += target
+        item["target_steps"] = max(1, target)
+        scaled.append(item)
+    return scaled
+
+
 def scaled_shards(shards: list[dict[str, Any]], scale: float) -> list[dict[str, Any]]:
     if scale <= 0.0:
         raise ValueError("--scale must be positive")
@@ -98,10 +117,11 @@ def launch_shards(
     xml_path: str,
     workers: int,
     scale: float,
+    total_steps: int,
     resume: bool,
     dry_run: bool = False,
 ) -> int:
-    shards = scaled_shards(SHARDS, scale)
+    shards = scaled_shards(shards_for_total(total_steps), scale)
     out_dir.mkdir(parents=True, exist_ok=True)
     logs_dir = out_dir / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -169,6 +189,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--scale", type=float, default=1.0)
+    parser.add_argument("--total_steps", type=int, default=5_000_000)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry_run", action="store_true")
     return parser.parse_args()
@@ -182,6 +203,7 @@ def main() -> None:
             xml_path=args.xml_path,
             workers=args.workers,
             scale=args.scale,
+            total_steps=args.total_steps,
             resume=args.resume,
             dry_run=args.dry_run,
         )

@@ -4,6 +4,7 @@ from data.launch_5m_shards import (
     SHARDS,
     build_shard_command,
     category_step_totals,
+    shards_for_total,
     scaled_shards,
     total_target_steps,
 )
@@ -17,6 +18,28 @@ def test_5m_shard_config_sums_to_requested_category_totals():
         "slow": 750_000,
         "fast_probe": 250_000,
     }
+
+
+def test_shards_for_total_builds_7m_with_same_composition():
+    shards = shards_for_total(7_000_000)
+
+    assert total_target_steps(shards) == 7_000_000
+    assert category_step_totals(shards) == {
+        "forward": 4_200_000,
+        "turn": 1_400_000,
+        "slow": 1_050_000,
+        "fast_probe": 350_000,
+    }
+    assert [int(shard["target_steps"]) for shard in shards] == [
+        1_050_000,
+        1_050_000,
+        1_050_000,
+        1_050_000,
+        700_000,
+        700_000,
+        1_050_000,
+        350_000,
+    ]
 
 
 def test_scaled_shards_keep_every_shard_nonzero_for_dry_runs():
