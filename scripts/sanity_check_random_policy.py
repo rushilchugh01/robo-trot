@@ -6,7 +6,7 @@ import json
 import numpy as np
 
 from robo_trot.policies.random_policy import RandomPolicy
-from robo_trot.policies.probe_policy import SineJointProbePolicy
+from robo_trot.policies.probe_policy import SineFlailPolicy, SineJointProbePolicy, SineJointScanPolicy
 from robo_trot.sim.a1_teacher_env import A1TeacherEnv
 from robo_trot.training.policy_rollout import PolicyRolloutHarness, load_dataset_contract, validate_env_contract
 
@@ -18,13 +18,29 @@ def run_check(args: argparse.Namespace) -> dict:
     validate_env_contract(env, contract)
     if args.policy_mode == "random":
         policy = RandomPolicy(action_dim=12, action_limit=args.action_limit)
-    else:
+    elif args.policy_mode == "joint_probe":
         policy = SineJointProbePolicy(
             action_dim=12,
             amplitude=args.probe_amplitude,
             frequency_hz=args.probe_frequency,
             policy_dt=env.policy_dt,
             joint_index=args.probe_joint,
+        )
+    elif args.policy_mode == "flail":
+        policy = SineFlailPolicy(
+            action_dim=12,
+            amplitude=args.flail_amplitude,
+            frequency_hz=args.flail_frequency,
+            policy_dt=env.policy_dt,
+            randomize_phases=not args.no_randomize_flail,
+        )
+    else:
+        policy = SineJointScanPolicy(
+            action_dim=12,
+            amplitude=args.scan_amplitude,
+            frequency_hz=args.scan_frequency,
+            policy_dt=env.policy_dt,
+            steps_per_joint=args.scan_steps_per_joint,
         )
     harness = PolicyRolloutHarness(env=env, policy=policy, command=np.asarray(args.command, dtype=np.float32), dataset_contract=contract)
     summary = harness.run(seconds=args.seconds, seed=args.seed)
@@ -43,11 +59,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
     parser.add_argument("--dataset_metadata", default="datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json")
     parser.add_argument("--seconds", type=float, default=1.0)
-    parser.add_argument("--policy_mode", choices=("random", "joint_probe"), default="random")
+    parser.add_argument("--policy_mode", choices=("random", "joint_probe", "flail", "joint_scan"), default="random")
     parser.add_argument("--action_limit", type=float, default=0.25)
     parser.add_argument("--probe_amplitude", type=float, default=0.35)
     parser.add_argument("--probe_frequency", type=float, default=0.5)
     parser.add_argument("--probe_joint", type=int, default=1)
+    parser.add_argument("--flail_amplitude", type=float, default=0.8)
+    parser.add_argument("--flail_frequency", type=float, default=0.7)
+    parser.add_argument("--no_randomize_flail", action="store_true")
+    parser.add_argument("--scan_amplitude", type=float, default=0.6)
+    parser.add_argument("--scan_frequency", type=float, default=0.5)
+    parser.add_argument("--scan_steps_per_joint", type=int, default=100)
     parser.add_argument("--min_joint_delta", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--command", nargs=3, type=float, default=[0.0, 0.0, 0.0], metavar=("VX", "VY", "YAW"))

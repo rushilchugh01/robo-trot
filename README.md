@@ -56,7 +56,7 @@ Always pass dataset metadata when testing against imitation-learning data. The h
 
 Use `--no_viewer` for headless checks and omit it to watch the robot move live in the MuJoCo viewer.
 
-For visual joint-order debugging, use `--policy_mode joint_probe`. By default this sweeps joint index `1` (`FR_thigh_joint`) with a sine wave so the leg motion is readable.
+For visual joint-order debugging, use `--policy_mode joint_probe` to sweep one selected joint, or `--policy_mode joint_scan` to sweep through all 12 joints one at a time. For stronger coherent whole-body motion, use `--policy_mode flail`; lower `--flail_amplitude` if the robot falls too quickly.
 
 ## Acceptance Gates
 

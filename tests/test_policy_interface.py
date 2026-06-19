@@ -41,6 +41,33 @@ def test_sine_joint_probe_policy_sweeps_selected_joint():
     assert float(np.max(np.abs(actions))) <= 0.400001
 
 
+def test_sine_flail_policy_moves_many_joints_over_time():
+    from robo_trot.policies.probe_policy import SineFlailPolicy
+
+    policy = SineFlailPolicy(action_dim=12, amplitude=0.8, frequency_hz=0.7, policy_dt=0.02)
+    policy.reset(np.random.default_rng(0))
+
+    actions = np.asarray([policy.act(np.zeros(56, dtype=np.float32)) for _ in range(80)])
+    moving_joints = np.ptp(actions, axis=0) > 0.5
+
+    assert actions.shape == (80, 12)
+    assert int(np.count_nonzero(moving_joints)) >= 10
+    assert float(np.max(np.abs(actions))) <= 0.800001
+
+
+def test_sine_joint_scan_policy_activates_one_joint_then_advances():
+    from robo_trot.policies.probe_policy import SineJointScanPolicy
+
+    policy = SineJointScanPolicy(action_dim=12, amplitude=0.6, frequency_hz=0.5, policy_dt=0.25, steps_per_joint=4)
+    policy.reset(np.random.default_rng(0))
+
+    actions = np.asarray([policy.act(np.zeros(56, dtype=np.float32)) for _ in range(10)])
+
+    assert np.flatnonzero(np.abs(actions[1]) > 1e-6).tolist() == [0]
+    assert np.flatnonzero(np.abs(actions[5]) > 1e-6).tolist() == [1]
+    assert float(np.max(np.abs(actions))) <= 0.600001
+
+
 def test_action_label_to_q_des_uses_dataset_convention():
     from robo_trot.policies.action_adapter import action_label_to_q_des
 
