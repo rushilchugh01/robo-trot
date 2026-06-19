@@ -14,7 +14,10 @@ from robo_trot.robot.a1 import ACTION_SCALE, OBS_DIM_NO_CONTACTS, OBS_DIM_WITH_C
 
 @dataclass(frozen=True)
 class DatasetContract:
-    """Dataset/environment contract required before policy rollout or training."""
+    """Dataset/environment contract required before policy rollout or training.
+
+    Instances expose a documented contract used by rollout, data, or policy code.
+    """
 
     joint_names: list[str]
     actuator_names: list[str]
@@ -26,7 +29,10 @@ class DatasetContract:
 
 @dataclass(frozen=True)
 class PolicyRolloutSummary:
-    """Summary statistics from a policy rollout harness run."""
+    """Summary statistics from a policy rollout harness run.
+
+    Instances expose a documented contract used by rollout, data, or policy code.
+    """
 
     steps: int
     survived: bool
@@ -40,7 +46,10 @@ class PolicyRolloutSummary:
 
 
 def load_dataset_contract(metadata_path: str | Path) -> DatasetContract:
-    """Load the policy contract fields from dataset metadata JSON."""
+    """Load the policy contract fields from dataset metadata JSON.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     metadata = json.loads(Path(metadata_path).read_text())
     return DatasetContract(
         joint_names=[str(value) for value in metadata["joint_names"]],
@@ -53,7 +62,10 @@ def load_dataset_contract(metadata_path: str | Path) -> DatasetContract:
 
 
 def validate_env_contract(env: Any, contract: DatasetContract) -> None:
-    """Raise if the current environment does not match dataset ordering metadata."""
+    """Raise if the current environment does not match dataset ordering metadata.
+
+    Validation failures are surfaced as explicit errors for callers and tests.
+    """
     if list(env.joint_names) != contract.joint_names:
         raise ValueError(f"joint_names mismatch: env={list(env.joint_names)} dataset={contract.joint_names}")
     if list(env.actuator_names) != contract.actuator_names:
@@ -70,7 +82,10 @@ def validate_env_contract(env: Any, contract: DatasetContract) -> None:
 
 
 class PolicyRolloutHarness:
-    """Run a live policy-environment loop using normalized policy actions."""
+    """Run a live policy-environment loop using normalized policy actions.
+
+    Instances expose a documented contract used by rollout, data, or policy code.
+    """
 
     def __init__(
         self,
@@ -79,7 +94,10 @@ class PolicyRolloutHarness:
         command: np.ndarray | None = None,
         dataset_contract: DatasetContract | None = None,
     ) -> None:
-        """Create a rollout harness and optionally validate dataset ordering."""
+        """Create a rollout harness and optionally validate dataset ordering.
+
+        It stores configuration and prepares the instance invariants used later.
+        """
         self.env = env
         self.policy = policy
         self.command = np.asarray(command if command is not None else np.zeros(3, dtype=np.float32), dtype=np.float32).reshape(3)
@@ -88,7 +106,10 @@ class PolicyRolloutHarness:
         self.dataset_contract = dataset_contract
 
     def run(self, seconds: float, seed: int = 0, render_callback: Any | None = None, print_every: int = 0) -> PolicyRolloutSummary:
-        """Run the policy loop for the requested simulated duration."""
+        """Run the policy loop for the requested simulated duration.
+
+        The routine owns the command or process lifecycle described by its arguments.
+        """
         rng = np.random.default_rng(seed)
         self.env.reset(seed=seed)
         self.policy.reset(rng)
@@ -145,5 +166,8 @@ class PolicyRolloutHarness:
         )
 
     def action_to_q_des(self, action_label: np.ndarray) -> np.ndarray:
-        """Convert one normalized policy action into environment joint targets."""
+        """Convert one normalized policy action into environment joint targets.
+
+        This documents the callable contract used by the surrounding pipeline.
+        """
         return action_label_to_q_des(action_label)

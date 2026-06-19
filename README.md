@@ -55,6 +55,16 @@ python data/record_teacher_demos.py \
   --seed 0
 ```
 
+## Quality Gates
+
+The normal test suite includes docstring linting:
+
+```bash
+pytest tests/test_docstring_coverage.py
+```
+
+Every production class, function, and method under `robo_trot/`, `data/`, and committed `scripts/` must have at least two non-empty docstring lines. Math-heavy helpers detected by trig, quaternion, yaw, or IK usage must have longer docstrings with equation, unit, or frame detail.
+
 Run `scripts/data/validate_dataset.py` on any dataset before using it for cloning. The validator checks array shapes, `action_label == clip((q_teacher - q_home) / action_scale)`, episode reset/done boundaries, that the `sin(phase), cos(phase)` fields inside `obs` match the saved `phase` column, and that the observation state slices match the saved raw state arrays for that same timestep. Older review artifacts generated before these alignment checks are useful only for visual comparison; regenerate them before using their `.npz` episodes as training data.
 
 The default observation includes foot contacts and has `obs_dim=56`. For the fallback observation without contact features, add `--no-use_contacts`; the episode still stores `foot_contacts` and `foot_pos` as debug arrays, but the actor observation has `obs_dim=52`.

@@ -37,3 +37,9 @@ Keep implementation code under `robo_trot/`:
 - `robo_trot/training/` for policy rollout harnesses, contract checks, and training utilities.
 
 Keep `data/*.py` as command-line compatibility wrappers. Keep runnable scripts in the relevant `scripts/<purpose>/` subfolder; the root `scripts/` directory should only contain package markers and subdirectories.
+
+## Docstring Gate
+
+`tests/test_docstring_coverage.py` is a production lint gate. Every committed class, function, and method under `robo_trot/`, `data/`, and `scripts/` needs at least two non-empty docstring lines, excluding ignored debug helpers.
+
+Math-heavy helpers detected by trig, quaternion, yaw, or IK usage need longer docstrings with equation, unit, or frame detail. Do not bypass this with generic one-liners.

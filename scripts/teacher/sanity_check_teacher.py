@@ -25,6 +25,10 @@ def evaluate_rollout(
     max_abs_roll: float,
     max_abs_pitch: float,
 ) -> dict:
+    """Document the evaluate_rollout callable contract.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     reasons: list[str] = []
     if not bool(summary.get("survived", False)):
         reasons.append(f"terminated: {summary.get('done_reason') or 'unknown'}")
@@ -51,6 +55,10 @@ def rollout_constant_command(
     seed: int,
     mode: str,
 ) -> dict:
+    """Document the rollout_constant_command callable contract.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     env = A1TeacherEnv(xml_path, {"use_contacts": True, "episode_seconds": seconds + 1.0})
     teacher = make_teacher("footspace", xml_path, env.policy_dt, profile=teacher_profile)
     rng = np.random.default_rng(seed)
@@ -73,6 +81,10 @@ def rollout_constant_command(
 
 
 def run_checks(args: argparse.Namespace) -> dict:
+    """Document the run_checks callable contract.
+
+    The routine owns the command or process lifecycle described by its arguments.
+    """
     stand_summary = rollout_constant_command(
         xml_path=args.xml_path,
         teacher_profile=args.teacher_profile,
@@ -113,6 +125,10 @@ def run_checks(args: argparse.Namespace) -> dict:
 
 
 def parse_args() -> argparse.Namespace:
+    """Document the parse_args callable contract.
+
+    The returned namespace is consumed by the corresponding command-line entry point.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
     parser.add_argument("--teacher_profile", choices=tuple(FOOTSPACE_TEACHER_PROFILES), default="strict_walk")
@@ -128,6 +144,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Document the main callable contract.
+
+    This is the direct execution entry point for the module.
+    """
     result = run_checks(parse_args())
     print(json.dumps(result, indent=2, sort_keys=True))
     raise SystemExit(0 if result["ok"] else 1)

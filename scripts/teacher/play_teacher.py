@@ -21,6 +21,10 @@ from robo_trot.teachers.footspace_cpg_ik import FootspaceCPGIKTeacher
 
 
 def scheduled_command(t: float) -> np.ndarray:
+    """Document the scheduled_command callable contract.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     if t < 5.0:
         return np.array([0.0, 0.0, 0.0], dtype=np.float32)
     if t < 15.0:
@@ -33,6 +37,10 @@ def scheduled_command(t: float) -> np.ndarray:
 
 
 def summarize_rollout(states: list[dict], seconds: float, done_reason: str) -> dict:
+    """Document the summarize_rollout callable contract.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     if not states:
         return {
             "survived": False,
@@ -59,10 +67,18 @@ def summarize_rollout(states: list[dict], seconds: float, done_reason: str) -> d
 
 
 def summary_line(states: list[dict], seconds: float, done_reason: str) -> str:
+    """Document the summary_line callable contract.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     return "summary: " + json.dumps(summarize_rollout(states, seconds, done_reason), sort_keys=True)
 
 
 def run(args: argparse.Namespace) -> None:
+    """Document the run callable contract.
+
+    The routine owns the command or process lifecycle described by its arguments.
+    """
     env = A1TeacherEnv(args.xml_path, {"use_contacts": args.use_contacts, "episode_seconds": args.seconds + 1.0})
     teacher = FootspaceCPGIKTeacher(
         xml_path=args.xml_path,
@@ -116,6 +132,10 @@ def run(args: argparse.Namespace) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """Document the parse_args callable contract.
+
+    The returned namespace is consumed by the corresponding command-line entry point.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
     parser.add_argument("--mode", choices=("home", "trot"), default="trot")
@@ -129,6 +149,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Document the main callable contract.
+
+    This is the direct execution entry point for the module.
+    """
     run(parse_args())
 
 

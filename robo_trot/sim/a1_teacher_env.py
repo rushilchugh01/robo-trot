@@ -30,7 +30,12 @@ def build_actor_obs(
     foot_contacts: np.ndarray,
     use_contacts: bool = True,
 ) -> np.ndarray:
-    """Build the raw actor observation vector from simulator state features."""
+    """Build the raw actor observation vector from simulator state features.
+
+    Math: angles are expressed in radians unless the caller documents otherwise.
+    Frame conventions and equations are made explicit for quaternion, yaw, or IK paths.
+    Outputs preserve the repository joint/contact ordering contract.
+    """
     parts = [
         np.asarray(projected_gravity_body, dtype=np.float32).reshape(3),
         np.asarray(base_ang_vel_body, dtype=np.float32).reshape(3),
@@ -54,7 +59,10 @@ def build_actor_obs(
 
 @dataclass(frozen=True)
 class A1EnvConfig:
-    """Configuration for the MuJoCo A1 teacher rollout environment."""
+    """Configuration for the MuJoCo A1 teacher rollout environment.
+
+    Instances expose a documented contract used by rollout, data, or policy code.
+    """
 
     physics_dt: float = 0.002
     policy_dt: float = 0.02
@@ -68,10 +76,16 @@ class A1EnvConfig:
 
 
 class A1TeacherEnv:
-    """MuJoCo environment wrapper for A1 teacher rollouts."""
+    """MuJoCo environment wrapper for A1 teacher rollouts.
+
+    Instances expose a documented contract used by rollout, data, or policy code.
+    """
 
     def __init__(self, xml_path: str | Path, cfg: dict[str, Any] | None = None):
-        """Load the MuJoCo model and configure control, timing, and metadata."""
+        """Load the MuJoCo model and configure control, timing, and metadata.
+
+        It stores configuration and prepares the instance invariants used later.
+        """
         self.xml_path = Path(xml_path)
         cfg = dict(cfg or {})
         self.cfg = A1EnvConfig(
@@ -105,7 +119,10 @@ class A1TeacherEnv:
         self.actuator_mode = self._detect_actuator_mode()
 
     def _detect_actuator_mode(self) -> str:
-        """Detect whether the model uses position actuators or manual torque control."""
+        """Detect whether the model uses position actuators or manual torque control.
+
+        This documents the callable contract used by the surrounding pipeline.
+        """
         if self.model.nu != 12:
             return "qfrc_applied"
         # Menagerie A1 defines position actuators. For those, ctrl is the joint
@@ -113,7 +130,10 @@ class A1TeacherEnv:
         return "position"
 
     def reset(self, seed: int | None = None) -> dict:
-        """Reset simulator state to the A1 standing home pose."""
+        """Reset simulator state to the A1 standing home pose.
+
+        It prepares per-episode state before rollout or simulation resumes.
+        """
         del seed
         mujoco.mj_resetData(self.model, self.data)
         self.data.qpos[0:3] = np.array([0.0, 0.0, self.cfg.base_height], dtype=np.float64)
@@ -129,7 +149,10 @@ class A1TeacherEnv:
         return self.get_state()
 
     def _detect_foot_geom_ids(self) -> dict[str, int]:
-        """Detect spherical foot geoms for contact extraction."""
+        """Detect spherical foot geoms for contact extraction.
+
+        This documents the callable contract used by the surrounding pipeline.
+        """
         ids: dict[str, int] = {}
         for geom_id in range(self.model.ngeom):
             body_id = int(self.model.geom_bodyid[geom_id])
@@ -140,25 +163,42 @@ class A1TeacherEnv:
         return ids
 
     def get_q_qdot(self) -> tuple[np.ndarray, np.ndarray]:
-        """Return actuated joint positions and velocities in actuator order."""
+        """Return actuated joint positions and velocities in actuator order.
+
+        Callers rely on the returned value shape and semantics described here.
+        """
         q = self.data.qpos[self.qposadr].astype(np.float32).copy()
         qdot = self.data.qvel[self.dofadr].astype(np.float32).copy()
         return q, qdot
 
     def _base_quat(self) -> np.ndarray:
-        """Return the floating-base quaternion in MuJoCo wxyz order."""
+        """Return the floating-base quaternion in MuJoCo wxyz order.
+
+        Math: angles are expressed in radians unless the caller documents otherwise.
+        Frame conventions and equations are made explicit for quaternion, yaw, or IK paths.
+        Outputs preserve the repository joint/contact ordering contract.
+        """
         return self.data.qpos[3:7].astype(np.float32).copy()
 
     def _base_lin_vel_body(self) -> np.ndarray:
-        """Return base linear velocity expressed in the body frame."""
+        """Return base linear velocity expressed in the body frame.
+
+        Callers rely on the returned value shape and semantics described here.
+        """
         return rotate_world_to_body(self._base_quat(), self.data.qvel[0:3].astype(np.float32))
 
     def _base_ang_vel_body(self) -> np.ndarray:
-        """Return base angular velocity expressed in the body frame."""
+        """Return base angular velocity expressed in the body frame.
+
+        Callers rely on the returned value shape and semantics described here.
+        """
         return rotate_world_to_body(self._base_quat(), self.data.qvel[3:6].astype(np.float32))
 
     def _foot_contacts(self) -> np.ndarray:
-        """Return binary foot-ground contact flags in FR, FL, RR, RL order."""
+        """Return binary foot-ground contact flags in FR, FL, RR, RL order.
+
+        Callers rely on the returned value shape and semantics described here.
+        """
         contacts = np.zeros(4, dtype=np.float32)
         foot_geom_to_idx = {geom_id: idx for idx, geom_id in enumerate(self.foot_geom_ids.get(leg) for leg in ("FR", "FL", "RR", "RL")) if geom_id is not None}
         floor_names = {"floor", "ground"}
@@ -177,7 +217,10 @@ class A1TeacherEnv:
         return contacts
 
     def _foot_pos(self) -> np.ndarray:
-        """Return foot geom positions in world coordinates."""
+        """Return foot geom positions in world coordinates.
+
+        Callers rely on the returned value shape and semantics described here.
+        """
         positions = np.zeros((4, 3), dtype=np.float32)
         for idx, leg in enumerate(("FR", "FL", "RR", "RL")):
             geom_id = self.foot_geom_ids.get(leg)
@@ -186,7 +229,10 @@ class A1TeacherEnv:
         return positions
 
     def get_state(self) -> dict:
-        """Return the raw simulator state fields used by teacher rollouts."""
+        """Return the raw simulator state fields used by teacher rollouts.
+
+        Callers rely on the returned value shape and semantics described here.
+        """
         quat = self._base_quat()
         roll, pitch = roll_pitch_from_quat(quat)
         projected_gravity = rotate_world_to_body(quat, GRAVITY_WORLD)
@@ -214,7 +260,10 @@ class A1TeacherEnv:
         reset_flag: bool,
         phase: float,
     ) -> np.ndarray:
-        """Build the actor observation from current state and previous-step values."""
+        """Build the actor observation from current state and previous-step values.
+
+        This documents the callable contract used by the surrounding pipeline.
+        """
         q, qdot = self.get_q_qdot()
         state = self.get_state()
         return build_actor_obs(
@@ -233,7 +282,10 @@ class A1TeacherEnv:
         )
 
     def step_q_des(self, q_des: np.ndarray) -> tuple[float, bool, dict]:
-        """Apply desired joint targets for one policy step and return rollout feedback."""
+        """Apply desired joint targets for one policy step and return rollout feedback.
+
+        Callers rely on the returned value shape and semantics described here.
+        """
         q_des = np.asarray(q_des, dtype=np.float32).reshape(12)
         for _ in range(self.decimation):
             q, qdot = self.get_q_qdot()
@@ -261,7 +313,10 @@ class A1TeacherEnv:
         return reward, done, info
 
     def _reward(self, state: dict, q_des: np.ndarray) -> float:
-        """Compute a lightweight debug reward for logging and filtering."""
+        """Compute a lightweight debug reward for logging and filtering.
+
+        This documents the callable contract used by the surrounding pipeline.
+        """
         del q_des
         vel = float(state["base_lin_vel_body"][0])
         upright = float(np.clip(-state["projected_gravity"][2], 0.0, 1.0))
@@ -269,7 +324,10 @@ class A1TeacherEnv:
         return float(0.5 * vel + 0.5 * upright + 0.2 - torque_penalty)
 
     def _done(self, state: dict) -> tuple[bool, str]:
-        """Evaluate terminal conditions and return a reason string."""
+        """Evaluate terminal conditions and return a reason string.
+
+        Callers rely on the returned value shape and semantics described here.
+        """
         if not np.all(np.isfinite(self.data.qpos)) or not np.all(np.isfinite(self.data.qvel)):
             return True, "nan"
         if float(state["base_pos"][2]) < self.cfg.base_height_min:
@@ -283,7 +341,10 @@ class A1TeacherEnv:
         return False, ""
 
     def render_frame(self, width: int = 640, height: int = 360, camera: str | int | None = None) -> np.ndarray:
-        """Render one RGB frame from a named, indexed, or default camera."""
+        """Render one RGB frame from a named, indexed, or default camera.
+
+        This documents the callable contract used by the surrounding pipeline.
+        """
         if self._renderer is None or self._renderer.width != width or self._renderer.height != height:
             self._renderer = mujoco.Renderer(self.model, height=height, width=width)
         cam = camera
@@ -304,7 +365,10 @@ class A1TeacherEnv:
         return self._renderer.render().astype(np.uint8)
 
     def _default_camera(self) -> str | int | None:
-        """Return the preferred model camera name when one exists."""
+        """Return the preferred model camera name when one exists.
+
+        Callers rely on the returned value shape and semantics described here.
+        """
         for name in ("track", "tracking", "side", "fixed"):
             cam_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_CAMERA, name)
             if cam_id >= 0:

@@ -20,7 +20,10 @@ from robo_trot.training.policy_rollout import PolicyRolloutHarness, load_dataset
 
 
 def parse_command(values: list[float] | None) -> np.ndarray:
-    """Parse a three-value command vector from CLI values."""
+    """Parse a three-value command vector from CLI values.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     if values is None:
         return np.zeros(3, dtype=np.float32)
     if len(values) != 3:
@@ -29,7 +32,10 @@ def parse_command(values: list[float] | None) -> np.ndarray:
 
 
 def build_harness(args: argparse.Namespace) -> PolicyRolloutHarness:
-    """Build the random-policy rollout harness from CLI arguments."""
+    """Build the random-policy rollout harness from CLI arguments.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     env = A1TeacherEnv(args.xml_path, {"use_contacts": args.use_contacts, "episode_seconds": args.seconds + 1.0})
     if args.policy_mode == "random":
         policy = RandomPolicy(action_dim=12, action_limit=args.action_limit)
@@ -62,14 +68,20 @@ def build_harness(args: argparse.Namespace) -> PolicyRolloutHarness:
 
 
 def run_headless(args: argparse.Namespace) -> None:
-    """Run the random policy without opening a MuJoCo viewer."""
+    """Run the random policy without opening a MuJoCo viewer.
+
+    The routine owns the command or process lifecycle described by its arguments.
+    """
     harness = build_harness(args)
     summary = harness.run(seconds=args.seconds, seed=args.seed, print_every=args.print_every)
     print(json.dumps(summary.__dict__, indent=2, sort_keys=True))
 
 
 def run_viewer(args: argparse.Namespace) -> None:
-    """Run the random policy loop while syncing the MuJoCo viewer."""
+    """Run the random policy loop while syncing the MuJoCo viewer.
+
+    The routine owns the command or process lifecycle described by its arguments.
+    """
     harness = build_harness(args)
     rng = np.random.default_rng(args.seed)
     env = harness.env
@@ -108,7 +120,10 @@ def run_viewer(args: argparse.Namespace) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments for the random-policy viewer."""
+    """Parse command-line arguments for the random-policy viewer.
+
+    The returned namespace is consumed by the corresponding command-line entry point.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
     parser.add_argument("--dataset_metadata", default="datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json")
@@ -133,7 +148,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    """Run the random-policy playback command-line entry point."""
+    """Run the random-policy playback command-line entry point.
+
+    This is the direct execution entry point for the module.
+    """
     args = parse_args()
     if args.no_viewer:
         run_headless(args)

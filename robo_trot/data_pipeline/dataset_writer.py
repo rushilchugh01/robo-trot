@@ -59,7 +59,12 @@ OBS_PHASE_COS_INDEX = 49
 
 
 def obs_phase_max_error(obs: np.ndarray, phase: np.ndarray) -> float:
-    """Return the maximum mismatch between observation phase channels and saved phase."""
+    """Return the maximum mismatch between observation phase channels and saved phase.
+
+    Math: angles are expressed in radians unless the caller documents otherwise.
+    Frame conventions and equations are made explicit for quaternion, yaw, or IK paths.
+    Outputs preserve the repository joint/contact ordering contract.
+    """
     obs = np.asarray(obs, dtype=np.float32)
     phase = np.asarray(phase, dtype=np.float32)
     if obs.ndim != 2 or obs.shape[1] <= OBS_PHASE_COS_INDEX or phase.ndim != 1 or obs.shape[0] != phase.shape[0]:
@@ -70,7 +75,10 @@ def obs_phase_max_error(obs: np.ndarray, phase: np.ndarray) -> float:
 
 
 def action_label_max_error(q_teacher: np.ndarray, action_label: np.ndarray) -> float:
-    """Return the maximum mismatch between labels and normalized teacher targets."""
+    """Return the maximum mismatch between labels and normalized teacher targets.
+
+    Callers rely on the returned value shape and semantics described here.
+    """
     q_teacher = np.asarray(q_teacher, dtype=np.float32)
     action_label = np.asarray(action_label, dtype=np.float32)
     if q_teacher.shape != action_label.shape or q_teacher.ndim != 2 or q_teacher.shape[1] != 12:
@@ -80,7 +88,10 @@ def action_label_max_error(q_teacher: np.ndarray, action_label: np.ndarray) -> f
 
 
 def obs_state_max_error(episode: dict[str, np.ndarray]) -> float:
-    """Return the maximum mismatch between observation slices and saved state arrays."""
+    """Return the maximum mismatch between observation slices and saved state arrays.
+
+    Callers rely on the returned value shape and semantics described here.
+    """
     obs = np.asarray(episode["obs"], dtype=np.float32)
     length = int(obs.shape[0])
     if obs.ndim != 2 or obs.shape[1] not in {52, 56}:
@@ -117,10 +128,16 @@ def obs_state_max_error(episode: dict[str, np.ndarray]) -> float:
 
 
 class DatasetWriter:
-    """Write accepted teacher episodes and media artifacts with metadata."""
+    """Write accepted teacher episodes and media artifacts with metadata.
+
+    Instances expose a documented contract used by rollout, data, or policy code.
+    """
 
     def __init__(self, out_dir: str | Path, metadata: dict[str, Any], resume: bool = False):
-        """Initialize output directories and load or create dataset metadata."""
+        """Initialize output directories and load or create dataset metadata.
+
+        It stores configuration and prepares the instance invariants used later.
+        """
         self.out_dir = Path(out_dir)
         self.episodes_dir = self.out_dir / "episodes"
         self.gifs_dir = self.out_dir / "gifs"
@@ -141,7 +158,10 @@ class DatasetWriter:
 
     @property
     def next_episode_id(self) -> int:
-        """Return the next episode identifier after existing metadata entries."""
+        """Return the next episode identifier after existing metadata entries.
+
+        Callers rely on the returned value shape and semantics described here.
+        """
         episodes = self.metadata.get("episodes", [])
         if not episodes:
             return 0
@@ -149,7 +169,10 @@ class DatasetWriter:
 
     @property
     def accepted_steps(self) -> int:
-        """Return the number of accepted transitions recorded in metadata."""
+        """Return the number of accepted transitions recorded in metadata.
+
+        Callers rely on the returned value shape and semantics described here.
+        """
         total = 0
         for entry in self.metadata.get("episodes", []):
             if entry.get("accepted", False):
@@ -157,17 +180,26 @@ class DatasetWriter:
         return total
 
     def _write_metadata(self) -> None:
-        """Persist current metadata to the dataset root."""
+        """Persist current metadata to the dataset root.
+
+        The side effect is part of the dataset or debug artifact contract.
+        """
         self.out_dir.mkdir(parents=True, exist_ok=True)
         (self.out_dir / "metadata.json").write_text(json.dumps(self.metadata, indent=2, sort_keys=True))
 
     def update_metadata(self, **updates: Any) -> None:
-        """Merge metadata fields and persist the updated metadata file."""
+        """Merge metadata fields and persist the updated metadata file.
+
+        The side effect is part of the dataset or debug artifact contract.
+        """
         self.metadata.update(updates)
         self._write_metadata()
 
     def record_rejection(self, attempt_id: int, stats: dict[str, Any], recent_limit: int = 100) -> None:
-        """Record a rejected episode summary without writing episode arrays."""
+        """Record a rejected episode summary without writing episode arrays.
+
+        Validation failures are surfaced as explicit errors for callers and tests.
+        """
         reason = str(stats.get("reject_reason") or stats.get("done_reason") or "unknown")
         counts = dict(self.metadata.get("rejection_counts", {}))
         counts[reason] = int(counts.get(reason, 0)) + 1
@@ -192,7 +224,10 @@ class DatasetWriter:
         self._write_metadata()
 
     def write_episode(self, ep_id: int, episode: dict[str, np.ndarray], accepted: bool, stats: dict[str, Any]) -> Path:
-        """Validate and write one episode NPZ plus its metadata entry."""
+        """Validate and write one episode NPZ plus its metadata entry.
+
+        The side effect is part of the dataset or debug artifact contract.
+        """
         missing = [key for key in REQUIRED_ARRAYS if key not in episode]
         if missing:
             raise KeyError(f"Episode missing arrays: {missing}")
@@ -210,7 +245,10 @@ class DatasetWriter:
         return path
 
     def _validate_episode_shapes(self, episode: dict[str, np.ndarray]) -> None:
-        """Validate episode array shapes and observation/label consistency."""
+        """Validate episode array shapes and observation/label consistency.
+
+        Validation failures are surfaced as explicit errors for callers and tests.
+        """
         length = int(np.asarray(episode["obs"]).shape[0])
         obs_dim = int(self.metadata.get("obs_dim", np.asarray(episode["obs"]).shape[1]))
         for key in REQUIRED_ARRAYS:
@@ -255,7 +293,10 @@ class DatasetWriter:
         stats: dict[str, Any],
         fps: int = 20,
     ) -> Path | None:
-        """Write a GIF preview and matching JSON stats sidecar when frames exist."""
+        """Write a GIF preview and matching JSON stats sidecar when frames exist.
+
+        The side effect is part of the dataset or debug artifact contract.
+        """
         if not frames:
             return None
         directory = self.gifs_dir if accepted else self.failed_gifs_dir
@@ -284,7 +325,10 @@ class DatasetWriter:
         stats: dict[str, Any],
         fps: int = 30,
     ) -> Path | None:
-        """Write an MP4 preview and matching JSON stats sidecar when supported."""
+        """Write an MP4 preview and matching JSON stats sidecar when supported.
+
+        The side effect is part of the dataset or debug artifact contract.
+        """
         if not frames:
             return None
         directory = self.videos_dir if accepted else (self.out_dir / "failed_videos")

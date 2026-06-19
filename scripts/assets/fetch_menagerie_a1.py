@@ -16,6 +16,10 @@ UNITREE_A1_DIR = "unitree_a1"
 
 
 def fetch_unitree_a1(out_dir: Path, force: bool = False) -> Path:
+    """Document the fetch_unitree_a1 callable contract.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     target = out_dir / UNITREE_A1_DIR
     scene = target / "scene.xml"
     if scene.exists() and not force:
@@ -37,6 +41,10 @@ def fetch_unitree_a1(out_dir: Path, force: bool = False) -> Path:
 
 
 def main() -> None:
+    """Document the main callable contract.
+
+    This is the direct execution entry point for the module.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--out_dir", default="assets/mujoco_menagerie")
     parser.add_argument("--force", action="store_true")

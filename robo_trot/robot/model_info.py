@@ -11,7 +11,10 @@ LEG_TOKENS = ("fr", "fl", "rr", "rl")
 
 @dataclass(frozen=True)
 class ActuatorJointMap:
-    """Mapping from one MuJoCo actuator to its driven joint addresses."""
+    """Mapping from one MuJoCo actuator to its driven joint addresses.
+
+    Instances expose a documented contract used by rollout, data, or policy code.
+    """
 
     actuator_id: int
     actuator_name: str
@@ -22,7 +25,10 @@ class ActuatorJointMap:
 
 
 def mj_names(model: mujoco.MjModel, obj_type: int, count: int) -> list[str]:
-    """Return MuJoCo object names, substituting placeholders for unnamed objects."""
+    """Return MuJoCo object names, substituting placeholders for unnamed objects.
+
+    Callers rely on the returned value shape and semantics described here.
+    """
     names: list[str] = []
     for idx in range(count):
         name = mujoco.mj_id2name(model, obj_type, idx)
@@ -31,14 +37,20 @@ def mj_names(model: mujoco.MjModel, obj_type: int, count: int) -> list[str]:
 
 
 def format_indexed_names(label: str, names: Iterable[str]) -> str:
-    """Format an indexed list of MuJoCo names for inspection output."""
+    """Format an indexed list of MuJoCo names for inspection output.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     lines = [f"{label} names:"]
     lines.extend(f"  {idx}: {name}" for idx, name in enumerate(names))
     return "\n".join(lines)
 
 
 def actuator_joint_maps(model: mujoco.MjModel) -> list[ActuatorJointMap]:
-    """Return actuator-to-joint mappings in MuJoCo actuator order."""
+    """Return actuator-to-joint mappings in MuJoCo actuator order.
+
+    Callers rely on the returned value shape and semantics described here.
+    """
     maps: list[ActuatorJointMap] = []
     for actuator_id in range(model.nu):
         joint_id = int(model.actuator_trnid[actuator_id, 0])
@@ -58,7 +70,12 @@ def actuator_joint_maps(model: mujoco.MjModel) -> list[ActuatorJointMap]:
 
 
 def likely_foot_names(names: Iterable[str]) -> list[str]:
-    """Filter names that likely refer to A1 feet or lower legs."""
+    """Filter names that likely refer to A1 feet or lower legs.
+
+    Math: angles are expressed in radians unless the caller documents otherwise.
+    Frame conventions and equations are made explicit for quaternion, yaw, or IK paths.
+    Outputs preserve the repository joint/contact ordering contract.
+    """
     out: list[str] = []
     for name in names:
         lower = name.lower()
@@ -70,7 +87,12 @@ def likely_foot_names(names: Iterable[str]) -> list[str]:
 
 
 def likely_foot_geom_candidates(model: mujoco.MjModel) -> list[str]:
-    """Return formatted candidate foot geoms based on calf body membership."""
+    """Return formatted candidate foot geoms based on calf body membership.
+
+    Math: angles are expressed in radians unless the caller documents otherwise.
+    Frame conventions and equations are made explicit for quaternion, yaw, or IK paths.
+    Outputs preserve the repository joint/contact ordering contract.
+    """
     candidates: list[str] = []
     for geom_id in range(model.ngeom):
         body_id = int(model.geom_bodyid[geom_id])
@@ -85,7 +107,10 @@ def likely_foot_geom_candidates(model: mujoco.MjModel) -> list[str]:
 
 
 def detected_foot_contact_geoms(model: mujoco.MjModel) -> list[str]:
-    """Return likely spherical foot contact geoms from candidate foot geoms."""
+    """Return likely spherical foot contact geoms from candidate foot geoms.
+
+    Callers rely on the returned value shape and semantics described here.
+    """
     contacts: list[str] = []
     for candidate in likely_foot_geom_candidates(model):
         if "type=mjGEOM_SPHERE" in candidate:
@@ -94,14 +119,20 @@ def detected_foot_contact_geoms(model: mujoco.MjModel) -> list[str]:
 
 
 def format_indexed_block(title: str, values: Iterable[str]) -> str:
-    """Format a titled indexed block of arbitrary string values."""
+    """Format a titled indexed block of arbitrary string values.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     lines = [f"{title}:"]
     lines.extend(f"  {idx}: {value}" for idx, value in enumerate(values))
     return "\n".join(lines)
 
 
 def describe_model(model: mujoco.MjModel) -> str:
-    """Return a human-readable MuJoCo model inspection report."""
+    """Return a human-readable MuJoCo model inspection report.
+
+    Callers rely on the returned value shape and semantics described here.
+    """
     actuator_names = mj_names(model, mujoco.mjtObj.mjOBJ_ACTUATOR, model.nu)
     joint_names = mj_names(model, mujoco.mjtObj.mjOBJ_JOINT, model.njnt)
     body_names = mj_names(model, mujoco.mjtObj.mjOBJ_BODY, model.nbody)

@@ -22,12 +22,18 @@ SHARDS: list[dict[str, Any]] = [
 
 
 def total_target_steps(shards: list[dict[str, Any]]) -> int:
-    """Return the total target transition count across shards."""
+    """Return the total target transition count across shards.
+
+    Callers rely on the returned value shape and semantics described here.
+    """
     return sum(int(shard["target_steps"]) for shard in shards)
 
 
 def category_step_totals(shards: list[dict[str, Any]]) -> dict[str, int]:
-    """Return target transition totals grouped by command category."""
+    """Return target transition totals grouped by command category.
+
+    Callers rely on the returned value shape and semantics described here.
+    """
     totals: dict[str, int] = {}
     for shard in shards:
         category = str(shard["category"])
@@ -36,7 +42,10 @@ def category_step_totals(shards: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def shards_for_total(total_steps: int, base_shards: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    """Scale the default shard recipe to an exact total transition target."""
+    """Scale the default shard recipe to an exact total transition target.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     base = base_shards or SHARDS
     base_total = total_target_steps(base)
     if int(total_steps) <= 0:
@@ -56,7 +65,10 @@ def shards_for_total(total_steps: int, base_shards: list[dict[str, Any]] | None 
 
 
 def scaled_shards(shards: list[dict[str, Any]], scale: float) -> list[dict[str, Any]]:
-    """Scale each shard target by a positive floating-point multiplier."""
+    """Scale each shard target by a positive floating-point multiplier.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     if scale <= 0.0:
         raise ValueError("--scale must be positive")
     scaled: list[dict[str, Any]] = []
@@ -74,7 +86,10 @@ def build_shard_command(
     resume: bool = False,
     python_executable: str = "python",
 ) -> list[str]:
-    """Build the recorder command for one independent shard process."""
+    """Build the recorder command for one independent shard process.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     category = str(shard["category"])
     if category not in CATEGORY_COMMAND_RANGES:
         raise ValueError(f"Unknown shard category: {category}")
@@ -107,7 +122,10 @@ def build_shard_command(
 
 
 def shard_is_complete(out_dir: Path, shard: dict[str, Any]) -> bool:
-    """Return whether a shard's metadata already meets its target."""
+    """Return whether a shard's metadata already meets its target.
+
+    Callers rely on the returned value shape and semantics described here.
+    """
     metadata_path = out_dir / "shards" / str(shard["name"]) / "metadata.json"
     if not metadata_path.exists():
         return False
@@ -127,7 +145,10 @@ def launch_shards(
     resume: bool,
     dry_run: bool = False,
 ) -> int:
-    """Launch and monitor independent recorder shard processes."""
+    """Launch and monitor independent recorder shard processes.
+
+    The routine owns the command or process lifecycle described by its arguments.
+    """
     shards = scaled_shards(shards_for_total(total_steps), scale)
     out_dir.mkdir(parents=True, exist_ok=True)
     logs_dir = out_dir / "logs"
@@ -191,7 +212,10 @@ def launch_shards(
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments for sharded dataset generation."""
+    """Parse command-line arguments for sharded dataset generation.
+
+    The returned namespace is consumed by the corresponding command-line entry point.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--out_dir", default="datasets/a1_teacher_flat_5m_v001")
     parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
@@ -204,7 +228,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    """Run the sharded generation command-line entry point."""
+    """Run the sharded generation command-line entry point.
+
+    This is the direct execution entry point for the module.
+    """
     args = parse_args()
     raise SystemExit(
         launch_shards(

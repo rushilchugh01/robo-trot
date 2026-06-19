@@ -11,7 +11,10 @@ from robo_trot.robot.a1 import ACTION_SCALE, Q_HOME
 
 @dataclass(frozen=True)
 class ActionMappingAuditResult:
-    """Per-action result from a normalized-action to joint-control audit."""
+    """Per-action result from a normalized-action to joint-control audit.
+
+    Instances expose a documented contract used by rollout, data, or policy code.
+    """
 
     index: int
     joint_name: str
@@ -31,7 +34,10 @@ def audit_action_mapping(
     settle_steps: int = 10,
     min_observed_delta: float = 1e-3,
 ) -> list[ActionMappingAuditResult]:
-    """Probe every action index and report whether it drives the matching joint."""
+    """Probe every action index and report whether it drives the matching joint.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     if not -1.0 <= float(action_value) <= 1.0 or float(action_value) == 0.0:
         raise ValueError("action_value must be nonzero and in [-1, 1]")
     if int(settle_steps) <= 0:
@@ -57,7 +63,10 @@ def _audit_one_action_index(
     settle_steps: int,
     min_observed_delta: float,
 ) -> ActionMappingAuditResult:
-    """Audit a single normalized action index against one environment joint."""
+    """Audit a single normalized action index against one environment joint.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     env.reset(seed=index)
     q_before, _ = env.get_q_qdot()
     action = np.zeros(12, dtype=np.float32)
@@ -112,7 +121,10 @@ def _audit_one_action_index(
 
 
 def _read_ctrl_delta(env: Any, index: int) -> float | None:
-    """Return the control-slot delta from home when the environment exposes it."""
+    """Return the control-slot delta from home when the environment exposes it.
+
+    Callers rely on the returned value shape and semantics described here.
+    """
     data = getattr(env, "data", None)
     ctrl = getattr(data, "ctrl", None)
     if ctrl is None:

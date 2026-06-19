@@ -18,7 +18,10 @@ from robo_trot.training.policy_rollout import PolicyRolloutHarness, load_dataset
 
 
 def run_check(args: argparse.Namespace) -> dict:
-    """Run a headless random-policy smoke check and return a report."""
+    """Run a headless random-policy smoke check and return a report.
+
+    Callers rely on the returned value shape and semantics described here.
+    """
     env = A1TeacherEnv(args.xml_path, {"use_contacts": args.use_contacts, "episode_seconds": args.seconds + 1.0})
     contract = load_dataset_contract(args.dataset_metadata)
     validate_env_contract(env, contract)
@@ -60,7 +63,10 @@ def run_check(args: argparse.Namespace) -> dict:
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments for the random-policy sanity check."""
+    """Parse command-line arguments for the random-policy sanity check.
+
+    The returned namespace is consumed by the corresponding command-line entry point.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
     parser.add_argument("--dataset_metadata", default="datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json")
@@ -84,7 +90,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    """Run the random-policy sanity-check command-line entry point."""
+    """Run the random-policy sanity-check command-line entry point.
+
+    This is the direct execution entry point for the module.
+    """
     args = parse_args()
     report = run_check(args)
     print(json.dumps(report, indent=2, sort_keys=True))

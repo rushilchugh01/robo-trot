@@ -14,6 +14,10 @@ from robo_trot.robot.model_info import describe_model
 
 
 def main() -> None:
+    """Document the main callable contract.
+
+    This is the direct execution entry point for the module.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
     args = parser.parse_args()

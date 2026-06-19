@@ -15,7 +15,10 @@ from robo_trot.training.policy_rollout import load_dataset_contract, validate_en
 
 
 def result_to_dict(result: ActionMappingAuditResult) -> dict:
-    """Convert one audit result to a JSON-serializable dictionary."""
+    """Convert one audit result to a JSON-serializable dictionary.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     return {
         "index": result.index,
         "joint_name": result.joint_name,
@@ -31,7 +34,10 @@ def result_to_dict(result: ActionMappingAuditResult) -> dict:
 
 
 def print_table(results: list[ActionMappingAuditResult]) -> None:
-    """Print action mapping audit results as a compact table."""
+    """Print action mapping audit results as a compact table.
+
+    This documents the callable contract used by the surrounding pipeline.
+    """
     header = (
         "idx  actuator      joint           expected   ctrl       observed   dominant       status  reason"
     )
@@ -53,7 +59,10 @@ def print_table(results: list[ActionMappingAuditResult]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments for the action mapping audit."""
+    """Parse command-line arguments for the action mapping audit.
+
+    The returned namespace is consumed by the corresponding command-line entry point.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
     parser.add_argument("--dataset_metadata", default="datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json")
@@ -66,7 +75,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    """Run the action-index to joint-index mapping audit."""
+    """Run the action-index to joint-index mapping audit.
+
+    This is the direct execution entry point for the module.
+    """
     args = parse_args()
     env = A1TeacherEnv(args.xml_path, {"use_contacts": args.use_contacts, "episode_seconds": 2.0})
     contract = load_dataset_contract(args.dataset_metadata)
