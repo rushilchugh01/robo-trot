@@ -98,8 +98,15 @@ def test_short_mujoco_random_policy_rollout_moves_joint_when_assets_exist():
 
 
 def test_random_policy_scripts_expose_help():
-    for script in ("scripts/play_random_policy.py", "scripts/sanity_check_random_policy.py"):
+    for script in (
+        "scripts/play_random_policy.py",
+        "scripts/sanity_check_random_policy.py",
+        "scripts/audit_action_mapping.py",
+        "scripts/policy/play_random_policy.py",
+        "scripts/policy/sanity_check_random_policy.py",
+        "scripts/policy/audit_action_mapping.py",
+    ):
         result = subprocess.run([sys.executable, script, "--help"], check=False, capture_output=True, text=True)
 
         assert result.returncode == 0
-        assert "--action_limit" in result.stdout
+        assert "--xml_path" in result.stdout

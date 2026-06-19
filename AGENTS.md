@@ -2,7 +2,7 @@
 
 ## Debug-Only Scripts
 
-Files matching `scripts/*_debug.py` are local review/probe helpers and are intentionally ignored by git. Do not rely on them for the committed core pipeline.
+Files matching `scripts/*_debug.py` or `scripts/**/*_debug.py` are local review/probe helpers and are intentionally ignored by git. Do not rely on them for the committed core pipeline.
 
 Local debug workflow details live in `docs/debug_review_helpers.md`; that file is also intentionally ignored by git.
 
@@ -21,9 +21,19 @@ Core scripts that should remain commit candidates include:
 - `scripts/inspect_dataset.py`
 - `scripts/play_teacher.py`
 - `scripts/play_random_policy.py`
+- `scripts/audit_action_mapping.py`
 - `scripts/sanity_check_teacher.py`
 - `scripts/sanity_check_random_policy.py`
 - `scripts/validate_dataset.py`
+- `scripts/assets/fetch_menagerie_a1.py`
+- `scripts/robot/inspect_a1_model.py`
+- `scripts/data/inspect_dataset.py`
+- `scripts/data/validate_dataset.py`
+- `scripts/teacher/play_teacher.py`
+- `scripts/teacher/sanity_check_teacher.py`
+- `scripts/policy/play_random_policy.py`
+- `scripts/policy/sanity_check_random_policy.py`
+- `scripts/policy/audit_action_mapping.py`
 
 ## Package Layout
 
@@ -35,4 +45,4 @@ Keep implementation code under `robo_trot/`:
 - `robo_trot/policies/` for policy implementations and action conversion.
 - `robo_trot/training/` for policy rollout harnesses, contract checks, and training utilities.
 
-Keep `data/*.py` and `scripts/*.py` as command-line wrappers unless a script is explicitly debug-only.
+Keep `data/*.py` and root `scripts/*.py` as command-line compatibility wrappers unless a script is explicitly debug-only. Place new script implementations in the relevant `scripts/<purpose>/` subfolder.

@@ -15,7 +15,15 @@ The implementation lives under `robo_trot/` by domain:
 - `robo_trot/policies/`: policy implementations.
 - `robo_trot/training/`: training entry points and utilities.
 
-The `data/*.py` and selected `scripts/*.py` files are thin CLI wrappers around `robo_trot.data_pipeline.*`, kept so existing commands continue to work.
+The root `scripts/*.py` files are compatibility wrappers. Script implementations are grouped by purpose:
+
+- `scripts/assets/`: asset fetch/setup.
+- `scripts/robot/`: MuJoCo model and A1 mapping inspection.
+- `scripts/teacher/`: teacher playback and teacher sanity checks.
+- `scripts/policy/`: policy harness playback, policy sanity checks, and action mapping audits.
+- `scripts/data/`: dataset inspection and validation wrappers.
+
+The `data/*.py` files are CLI wrappers around `robo_trot.data_pipeline.*`, kept so existing data-generation commands continue to work.
 
 ## Quick Commands
 
@@ -26,6 +34,9 @@ python scripts/play_teacher.py --mode home --seconds 30 --no_viewer
 python scripts/play_teacher.py --teacher footspace --teacher_profile strict_walk --mode trot --seconds 20 --no_viewer
 python scripts/sanity_check_teacher.py --stand_seconds 30 --walk_seconds 20 --walk_vx 0.5 --teacher_profile strict_walk
 python scripts/sanity_check_random_policy.py \
+  --xml_path assets/mujoco_menagerie/unitree_a1/scene.xml \
+  --dataset_metadata datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json
+python scripts/audit_action_mapping.py \
   --xml_path assets/mujoco_menagerie/unitree_a1/scene.xml \
   --dataset_metadata datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json
 python scripts/play_random_policy.py \
@@ -53,6 +64,8 @@ The default observation includes foot contacts and has `obs_dim=56`. For the fal
 The random policy harness verifies the future policy loop without training. It reads actor observations, emits normalized 12D action labels, converts labels with `q_des = q_home + action_scale * action_label`, and applies those raw joint targets through the MuJoCo environment.
 
 Always pass dataset metadata when testing against imitation-learning data. The harness checks joint names, actuator names, `q_home`, `action_scale`, observation dimension, and action dimension before stepping the robot.
+
+Run `scripts/audit_action_mapping.py` when changing the environment, model XML, action adapter, or policy harness. It probes each normalized action index and reports the expected q-target delta, the MuJoCo control-slot delta, the observed joint delta, and the dominant moving joint. All 12 rows must pass before trusting a policy rollout against a dataset.
 
 Use `--no_viewer` for headless checks and omit it to watch the robot move live in the MuJoCo viewer.
 
