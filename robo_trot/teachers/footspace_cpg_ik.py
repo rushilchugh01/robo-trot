@@ -14,6 +14,8 @@ from robo_trot.teachers.base import TeacherOutput
 
 @dataclass
 class FootspaceCPGIKTeacher:
+    """Foot-space CPG teacher that converts desired foot motion into A1 joint targets."""
+
     xml_path: str | Path
     policy_dt: float = 0.02
     base_freq: float = 1.6
@@ -38,6 +40,7 @@ class FootspaceCPGIKTeacher:
     yaw_stance_bias_fraction: float = 0.25
 
     def __post_init__(self) -> None:
+        """Load MuJoCo model metadata and initialize private IK state."""
         self.model = mujoco.MjModel.from_xml_path(str(self.xml_path))
         self.data = mujoco.MjData(self.model)
         maps = actuator_joint_maps(self.model)
@@ -54,19 +57,23 @@ class FootspaceCPGIKTeacher:
         self._q_prev = Q_HOME.copy()
 
     def reset(self, rng: np.random.Generator) -> None:
+        """Reset phase and previous joint target for a new episode."""
         self.phase = float(rng.uniform(0.0, 2.0 * math.pi))
         self._q_prev = Q_HOME.copy()
 
     def frequency(self, command: np.ndarray) -> float:
+        """Map commanded forward speed to gait frequency."""
         vx = float(np.asarray(command, dtype=np.float32)[0])
         scale = np.clip(abs(vx) / self.frequency_speed_ref, 0.0, 1.0)
         return float(self.base_freq + (self.max_freq - self.base_freq) * scale)
 
     def action_label(self, q_teacher: np.ndarray) -> np.ndarray:
+        """Normalize raw teacher joint targets into policy action labels."""
         label = (np.asarray(q_teacher, dtype=np.float32) - Q_HOME) / ACTION_SCALE
         return np.clip(label, -1.0, 1.0).astype(np.float32)
 
     def compute(self, state: dict, command: np.ndarray) -> TeacherOutput:
+        """Compute the next teacher joint target for the requested command."""
         command = np.asarray(command, dtype=np.float32)
         vx_cmd = float(command[0])
         yaw_cmd = float(command[2])
@@ -137,6 +144,7 @@ class FootspaceCPGIKTeacher:
         yaw_step_bias: float,
         yaw_lateral_bias: float,
     ) -> tuple[np.ndarray, str]:
+        """Return desired foot position and gait state for one leg phase."""
         home = self.home_foot_pos[leg].copy()
         duty = float(np.clip(self.swing_duty, 0.25, 0.55))
         if phase01 < duty:
@@ -160,18 +168,22 @@ class FootspaceCPGIKTeacher:
         return home.astype(np.float32), state
 
     def _yaw_norm(self, yaw_cmd: float) -> float:
+        """Normalize yaw command by configured command limit."""
         limit = max(float(self.yaw_cmd_limit), 1e-6)
         return float(np.clip(yaw_cmd / limit, -1.0, 1.0))
 
     def _yaw_side_sign(self, leg: str) -> float:
+        """Return the side sign used for differential turning stride."""
         # Positive yaw turns left, so right-side legs are the outside legs.
         return 1.0 if leg in {"FR", "RR"} else -1.0
 
     def _yaw_stride_scale(self, leg: str, yaw_norm: float) -> float:
+        """Return the yaw-adjusted stride scale for one leg."""
         raw = 1.0 + self._yaw_side_sign(leg) * float(self.yaw_stride_gain) * float(yaw_norm)
         return float(np.clip(raw, self.yaw_stride_min_scale, self.yaw_stride_max_scale))
 
     def _solve_leg_ik(self, leg_idx: int, desired_pos: np.ndarray, q_all_seed: np.ndarray) -> np.ndarray:
+        """Solve damped least-squares IK for one leg's foot target."""
         q_all = np.asarray(q_all_seed, dtype=np.float64).copy()
         leg_slice = slice(3 * leg_idx, 3 * leg_idx + 3)
         geom_id = self.foot_geom_ids[self.leg_names[leg_idx]]
@@ -193,6 +205,7 @@ class FootspaceCPGIKTeacher:
         return q_all[leg_slice].astype(np.float32)
 
     def _set_private_q(self, q: np.ndarray) -> None:
+        """Set the teacher's private MuJoCo state for IK calculations."""
         mujoco.mj_resetData(self.model, self.data)
         self.data.qpos[0:3] = np.array([0.0, 0.0, 0.0], dtype=np.float64)
         self.data.qpos[3:7] = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
@@ -200,6 +213,7 @@ class FootspaceCPGIKTeacher:
         mujoco.mj_forward(self.model, self.data)
 
     def _clip_leg_q(self, leg_idx: int, q_leg: np.ndarray) -> np.ndarray:
+        """Clip one leg's joints to MuJoCo actuator control ranges."""
         out = np.asarray(q_leg, dtype=np.float64).copy()
         for local_idx in range(3):
             actuator_idx = 3 * leg_idx + local_idx
@@ -207,6 +221,7 @@ class FootspaceCPGIKTeacher:
         return out
 
     def _detect_foot_geom_ids(self) -> dict[str, int]:
+        """Detect spherical foot geoms for each A1 leg."""
         ids: dict[str, int] = {}
         for geom_id in range(self.model.ngeom):
             body_id = int(self.model.geom_bodyid[geom_id])
@@ -217,5 +232,6 @@ class FootspaceCPGIKTeacher:
         return ids
 
     def _compute_home_foot_pos(self) -> dict[str, np.ndarray]:
+        """Compute foot positions at the configured home joint pose."""
         self._set_private_q(Q_HOME)
         return {leg: self.data.geom_xpos[geom_id].astype(np.float32).copy() for leg, geom_id in self.foot_geom_ids.items()}

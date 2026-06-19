@@ -89,6 +89,7 @@ FOOTSPACE_TEACHER_PROFILES = {
 
 
 def sample_command(rng: np.random.Generator, profile: str = "default") -> tuple[np.ndarray, str]:
+    """Sample a command from a mixed forward, slow, and turning profile."""
     if profile not in COMMAND_PROFILES:
         raise ValueError(f"Unknown command profile: {profile}")
     ranges = COMMAND_PROFILES[profile]
@@ -104,6 +105,7 @@ def sample_command(rng: np.random.Generator, profile: str = "default") -> tuple[
 
 
 def sample_category_command(rng: np.random.Generator, category: str) -> tuple[np.ndarray, str]:
+    """Sample a command from one fixed dataset category."""
     if category not in CATEGORY_COMMAND_RANGES:
         raise ValueError(f"Unknown command category: {category}")
     spec = CATEGORY_COMMAND_RANGES[category]
@@ -117,6 +119,7 @@ def sample_category_command(rng: np.random.Generator, category: str) -> tuple[np
 
 
 def parse_fixed_command(values: list[float] | None) -> np.ndarray | None:
+    """Convert optional CLI fixed-command values into a command vector."""
     if values is None:
         return None
     if len(values) != 3:
@@ -125,6 +128,7 @@ def parse_fixed_command(values: list[float] | None) -> np.ndarray | None:
 
 
 def make_teacher(name: str, xml_path: str, policy_dt: float, profile: str = "strict_walk"):
+    """Instantiate a teacher controller by name and profile."""
     if name == "footspace":
         if profile not in FOOTSPACE_TEACHER_PROFILES:
             raise ValueError(f"Unknown footspace teacher profile: {profile}")
@@ -133,11 +137,13 @@ def make_teacher(name: str, xml_path: str, policy_dt: float, profile: str = "str
 
 
 def _append_step(buffers: dict[str, list], values: dict[str, Any]) -> None:
+    """Append one timestep's arrays into rollout buffers."""
     for key, value in values.items():
         buffers[key].append(value)
 
 
 def _stack_episode(buffers: dict[str, list]) -> dict[str, np.ndarray]:
+    """Stack rollout buffers into typed per-episode arrays."""
     arrays: dict[str, np.ndarray] = {}
     for key, values in buffers.items():
         if key in {"done", "reset_flag"}:
@@ -148,17 +154,20 @@ def _stack_episode(buffers: dict[str, list]) -> dict[str, np.ndarray]:
 
 
 def _clip_fraction(action_labels: np.ndarray) -> float:
+    """Return the fraction of normalized labels at the clipping boundary."""
     if action_labels.size == 0:
         return 0.0
     return float(np.mean(np.abs(action_labels) >= 0.999))
 
 
 def quat_wxyz_to_yaw(quat: np.ndarray) -> float:
+    """Convert a MuJoCo wxyz quaternion into yaw angle in radians."""
     w, x, y, z = np.asarray(quat, dtype=np.float64)
     return float(np.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)))
 
 
 def episode_yaw_delta(episode: dict[str, np.ndarray]) -> float:
+    """Return unwrapped yaw change across an episode."""
     quats = np.asarray(episode.get("base_quat", np.zeros((0, 4), dtype=np.float32)), dtype=np.float32)
     if quats.ndim != 2 or quats.shape[0] < 2 or quats.shape[1] != 4:
         return 0.0
@@ -171,6 +180,7 @@ def contact_slip_metrics(
     foot_contacts: np.ndarray,
     policy_dt: float = 0.02,
 ) -> dict[str, float | int]:
+    """Measure contacted-foot horizontal slip speeds over an episode."""
     foot_pos = np.asarray(foot_pos, dtype=np.float32)
     foot_contacts = np.asarray(foot_contacts, dtype=np.float32) > 0.5
     if foot_pos.ndim != 3 or foot_pos.shape[0] < 2 or foot_pos.shape[1:] != (4, 3):
@@ -194,6 +204,7 @@ def expand_frames_for_playback(
     render_every: int,
     gif_fps: int,
 ) -> list[np.ndarray]:
+    """Repeat rendered frames so GIF playback approximates simulation time."""
     if not frames:
         return frames
     frame_step_seconds = float(policy_dt) * max(1, int(render_every))
@@ -213,6 +224,7 @@ def render_q_teacher_episode(
     gif_width: int,
     gif_height: int,
 ) -> list[np.ndarray]:
+    """Render an episode by replaying saved teacher joint targets."""
     env.reset(seed=0)
     frames: list[np.ndarray] = []
     for step, q_des in enumerate(np.asarray(q_teacher, dtype=np.float32)):
@@ -237,6 +249,7 @@ def write_debug_exports(
     save_video: bool,
     video_fps: int,
 ) -> dict[str, bool]:
+    """Render and write requested GIF or video debug exports."""
     if not save_gif and not save_video:
         return {"gif": False, "video": False}
 
@@ -252,6 +265,7 @@ def write_debug_exports(
 
 
 def initial_recording_counters(writer: DatasetWriter, out_dir: str | Path, resume: bool) -> dict[str, int]:
+    """Return recorder counters for a fresh or resumed dataset run."""
     if not resume:
         return {
             "accepted_steps": 0,
@@ -272,6 +286,7 @@ def initial_recording_counters(writer: DatasetWriter, out_dir: str | Path, resum
 
 
 def episode_stats(episode: dict[str, np.ndarray], done_reason: str, accepted: bool, reject_reason: str) -> dict[str, Any]:
+    """Compute per-episode quality and acceptance summary statistics."""
     base_pos = episode["base_pos"]
     commands = episode["command"]
     rewards = episode["reward"]
@@ -313,6 +328,7 @@ def should_accept(
     yaw_cmd_threshold: float = 0.2,
     min_yaw_delta: float = 0.25,
 ) -> tuple[bool, str]:
+    """Apply quality gates to decide whether an episode enters the dataset."""
     steps = len(episode["reward"])
     if steps < 100:
         return False, "too_short"
@@ -365,6 +381,7 @@ def rollout_episode(
     command_profile: str = "default",
     command_category: str | None = None,
 ) -> tuple[dict[str, np.ndarray], list[np.ndarray], dict[str, Any]]:
+    """Roll out one teacher-controlled episode and return arrays, frames, and metadata."""
     del debug_failed_gifs
     env.reset(seed=int(rng.integers(0, 2**31 - 1)))
     teacher.reset(rng)
@@ -438,6 +455,7 @@ def rollout_episode(
 
 
 def run_recording(args: argparse.Namespace) -> None:
+    """Run the teacher demonstration recording loop from parsed CLI arguments."""
     rng = np.random.default_rng(args.seed)
     env = A1TeacherEnv(args.xml_path, {"use_contacts": args.use_contacts})
     teacher = make_teacher(args.teacher, args.xml_path, env.policy_dt, profile=args.teacher_profile)
@@ -589,6 +607,7 @@ def run_recording(args: argparse.Namespace) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for teacher demonstration recording."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
     parser.add_argument("--out_dir", default="datasets/a1_teacher_flat_v001")
@@ -624,6 +643,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the teacher demonstration recorder command-line entry point."""
     run_recording(parse_args())
 
 

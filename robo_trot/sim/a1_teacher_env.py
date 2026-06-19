@@ -30,6 +30,7 @@ def build_actor_obs(
     foot_contacts: np.ndarray,
     use_contacts: bool = True,
 ) -> np.ndarray:
+    """Build the raw actor observation vector from simulator state features."""
     parts = [
         np.asarray(projected_gravity_body, dtype=np.float32).reshape(3),
         np.asarray(base_ang_vel_body, dtype=np.float32).reshape(3),
@@ -53,6 +54,8 @@ def build_actor_obs(
 
 @dataclass(frozen=True)
 class A1EnvConfig:
+    """Configuration for the MuJoCo A1 teacher rollout environment."""
+
     physics_dt: float = 0.002
     policy_dt: float = 0.02
     use_contacts: bool = True
@@ -65,7 +68,10 @@ class A1EnvConfig:
 
 
 class A1TeacherEnv:
+    """MuJoCo environment wrapper for A1 teacher rollouts."""
+
     def __init__(self, xml_path: str | Path, cfg: dict[str, Any] | None = None):
+        """Load the MuJoCo model and configure control, timing, and metadata."""
         self.xml_path = Path(xml_path)
         cfg = dict(cfg or {})
         self.cfg = A1EnvConfig(
@@ -99,6 +105,7 @@ class A1TeacherEnv:
         self.actuator_mode = self._detect_actuator_mode()
 
     def _detect_actuator_mode(self) -> str:
+        """Detect whether the model uses position actuators or manual torque control."""
         if self.model.nu != 12:
             return "qfrc_applied"
         # Menagerie A1 defines position actuators. For those, ctrl is the joint
@@ -106,6 +113,7 @@ class A1TeacherEnv:
         return "position"
 
     def reset(self, seed: int | None = None) -> dict:
+        """Reset simulator state to the A1 standing home pose."""
         del seed
         mujoco.mj_resetData(self.model, self.data)
         self.data.qpos[0:3] = np.array([0.0, 0.0, self.cfg.base_height], dtype=np.float64)
@@ -121,6 +129,7 @@ class A1TeacherEnv:
         return self.get_state()
 
     def _detect_foot_geom_ids(self) -> dict[str, int]:
+        """Detect spherical foot geoms for contact extraction."""
         ids: dict[str, int] = {}
         for geom_id in range(self.model.ngeom):
             body_id = int(self.model.geom_bodyid[geom_id])
@@ -131,20 +140,25 @@ class A1TeacherEnv:
         return ids
 
     def get_q_qdot(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return actuated joint positions and velocities in actuator order."""
         q = self.data.qpos[self.qposadr].astype(np.float32).copy()
         qdot = self.data.qvel[self.dofadr].astype(np.float32).copy()
         return q, qdot
 
     def _base_quat(self) -> np.ndarray:
+        """Return the floating-base quaternion in MuJoCo wxyz order."""
         return self.data.qpos[3:7].astype(np.float32).copy()
 
     def _base_lin_vel_body(self) -> np.ndarray:
+        """Return base linear velocity expressed in the body frame."""
         return rotate_world_to_body(self._base_quat(), self.data.qvel[0:3].astype(np.float32))
 
     def _base_ang_vel_body(self) -> np.ndarray:
+        """Return base angular velocity expressed in the body frame."""
         return rotate_world_to_body(self._base_quat(), self.data.qvel[3:6].astype(np.float32))
 
     def _foot_contacts(self) -> np.ndarray:
+        """Return binary foot-ground contact flags in FR, FL, RR, RL order."""
         contacts = np.zeros(4, dtype=np.float32)
         foot_geom_to_idx = {geom_id: idx for idx, geom_id in enumerate(self.foot_geom_ids.get(leg) for leg in ("FR", "FL", "RR", "RL")) if geom_id is not None}
         floor_names = {"floor", "ground"}
@@ -163,6 +177,7 @@ class A1TeacherEnv:
         return contacts
 
     def _foot_pos(self) -> np.ndarray:
+        """Return foot geom positions in world coordinates."""
         positions = np.zeros((4, 3), dtype=np.float32)
         for idx, leg in enumerate(("FR", "FL", "RR", "RL")):
             geom_id = self.foot_geom_ids.get(leg)
@@ -171,6 +186,7 @@ class A1TeacherEnv:
         return positions
 
     def get_state(self) -> dict:
+        """Return the raw simulator state fields used by teacher rollouts."""
         quat = self._base_quat()
         roll, pitch = roll_pitch_from_quat(quat)
         projected_gravity = rotate_world_to_body(quat, GRAVITY_WORLD)
@@ -198,6 +214,7 @@ class A1TeacherEnv:
         reset_flag: bool,
         phase: float,
     ) -> np.ndarray:
+        """Build the actor observation from current state and previous-step values."""
         q, qdot = self.get_q_qdot()
         state = self.get_state()
         return build_actor_obs(
@@ -216,6 +233,7 @@ class A1TeacherEnv:
         )
 
     def step_q_des(self, q_des: np.ndarray) -> tuple[float, bool, dict]:
+        """Apply desired joint targets for one policy step and return rollout feedback."""
         q_des = np.asarray(q_des, dtype=np.float32).reshape(12)
         for _ in range(self.decimation):
             q, qdot = self.get_q_qdot()
@@ -243,6 +261,7 @@ class A1TeacherEnv:
         return reward, done, info
 
     def _reward(self, state: dict, q_des: np.ndarray) -> float:
+        """Compute a lightweight debug reward for logging and filtering."""
         del q_des
         vel = float(state["base_lin_vel_body"][0])
         upright = float(np.clip(-state["projected_gravity"][2], 0.0, 1.0))
@@ -250,6 +269,7 @@ class A1TeacherEnv:
         return float(0.5 * vel + 0.5 * upright + 0.2 - torque_penalty)
 
     def _done(self, state: dict) -> tuple[bool, str]:
+        """Evaluate terminal conditions and return a reason string."""
         if not np.all(np.isfinite(self.data.qpos)) or not np.all(np.isfinite(self.data.qvel)):
             return True, "nan"
         if float(state["base_pos"][2]) < self.cfg.base_height_min:
@@ -263,6 +283,7 @@ class A1TeacherEnv:
         return False, ""
 
     def render_frame(self, width: int = 640, height: int = 360, camera: str | int | None = None) -> np.ndarray:
+        """Render one RGB frame from a named, indexed, or default camera."""
         if self._renderer is None or self._renderer.width != width or self._renderer.height != height:
             self._renderer = mujoco.Renderer(self.model, height=height, width=width)
         cam = camera
@@ -283,6 +304,7 @@ class A1TeacherEnv:
         return self._renderer.render().astype(np.uint8)
 
     def _default_camera(self) -> str | int | None:
+        """Return the preferred model camera name when one exists."""
         for name in ("track", "tracking", "side", "fixed"):
             cam_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_CAMERA, name)
             if cam_id >= 0:

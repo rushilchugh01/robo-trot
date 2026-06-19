@@ -10,10 +10,12 @@ from robo_trot.demos.dataset_writer import obs_phase_max_error
 
 
 def load_episode_paths(dataset_dir: Path) -> list[Path]:
+    """Return sorted episode NPZ paths from an unsharded dataset directory."""
     return sorted((dataset_dir / "episodes").glob("ep_*.npz"))
 
 
 def inspect_sharded_dataset(dataset_dir: Path) -> str:
+    """Format a summary for a sharded dataset manifest."""
     manifest = json.loads((dataset_dir / "dataset_manifest.json").read_text())
     category_steps = manifest.get("category_steps", {})
     category_text = ", ".join(f"{category}={int(steps)}" for category, steps in sorted(category_steps.items()))
@@ -54,6 +56,7 @@ def inspect_sharded_dataset(dataset_dir: Path) -> str:
 
 
 def inspect_dataset(dataset_dir: Path) -> str:
+    """Format dataset statistics for either sharded or single-directory datasets."""
     if (dataset_dir / "dataset_manifest.json").exists():
         return inspect_sharded_dataset(dataset_dir)
     paths = load_episode_paths(dataset_dir)
@@ -164,6 +167,7 @@ def inspect_dataset(dataset_dir: Path) -> str:
 
 
 def main() -> None:
+    """Run the dataset inspection command-line entry point."""
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset_dir")
     args = parser.parse_args()

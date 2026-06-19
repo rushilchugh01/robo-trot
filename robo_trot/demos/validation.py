@@ -12,12 +12,15 @@ from robo_trot.robot.a1 import ACTION_SCALE, Q_HOME
 
 @dataclass
 class ValidationResult:
+    """Summary of structural dataset validation."""
+
     ok: bool
     episodes: int
     transitions: int
     errors: list[str] = field(default_factory=list)
 
     def report(self) -> str:
+        """Format validation results for command-line output."""
         lines = [
             f"valid: {self.ok}",
             f"episodes: {self.episodes}",
@@ -29,10 +32,12 @@ class ValidationResult:
 
 
 def _episode_paths(dataset_dir: Path) -> list[Path]:
+    """Return sorted episode NPZ paths from a single shard or dataset."""
     return sorted((dataset_dir / "episodes").glob("ep_*.npz"))
 
 
 def _validate_episode(path: Path, expected_obs_dim: int | None = None, expected_action_dim: int | None = None) -> tuple[int, list[str]]:
+    """Validate one episode file and return its length plus errors."""
     errors: list[str] = []
     with np.load(path) as data:
         keys = set(data.files)
@@ -106,6 +111,7 @@ def _validate_episode(path: Path, expected_obs_dim: int | None = None, expected_
 
 
 def _validate_metadata(dataset_dir: Path, episode_paths: list[Path]) -> list[str]:
+    """Validate metadata consistency against episode files on disk."""
     metadata_path = dataset_dir / "metadata.json"
     if not metadata_path.exists():
         return []
@@ -143,6 +149,7 @@ def _validate_metadata(dataset_dir: Path, episode_paths: list[Path]) -> list[str
 
 
 def validate_dataset(dataset_dir: str | Path) -> ValidationResult:
+    """Validate episode files and metadata for one dataset directory."""
     dataset_dir = Path(dataset_dir)
     paths = _episode_paths(dataset_dir)
     errors: list[str] = []
@@ -162,6 +169,7 @@ def validate_dataset(dataset_dir: str | Path) -> ValidationResult:
 
 
 def main() -> None:
+    """Run the dataset validation command-line entry point."""
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset_dir")
     args = parser.parse_args()

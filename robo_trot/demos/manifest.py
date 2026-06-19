@@ -11,6 +11,7 @@ from robo_trot.demos.record_teacher_demos import CATEGORY_COMMAND_RANGES
 
 
 def load_shard_config(dataset_dir: Path) -> dict[str, Any]:
+    """Load launcher shard configuration or synthesize the default 5M layout."""
     config_path = dataset_dir / "launcher_config.json"
     if config_path.exists():
         return json.loads(config_path.read_text())
@@ -22,21 +23,25 @@ def load_shard_config(dataset_dir: Path) -> dict[str, Any]:
 
 
 def _require(condition: bool, message: str) -> None:
+    """Raise a manifest validation error when a required condition is false."""
     if not condition:
         raise ValueError(message)
 
 
 def _read_metadata(path: Path) -> dict[str, Any]:
+    """Read a shard metadata JSON file, requiring that it exists."""
     if not path.exists():
         raise FileNotFoundError(f"missing shard metadata: {path}")
     return json.loads(path.read_text())
 
 
 def _episode_steps(entry: dict[str, Any]) -> int:
+    """Extract accepted transition count from an episode metadata entry."""
     return int(entry.get("stats", {}).get("survival_steps", 0))
 
 
 def _validate_shard(shard: dict[str, Any], metadata: dict[str, Any]) -> None:
+    """Validate one shard's metadata against the launcher configuration."""
     category = str(shard["category"])
     expected_profile = str(CATEGORY_COMMAND_RANGES[category]["teacher_profile"])
     _require(int(metadata.get("obs_dim", 0)) == 56, f"{shard['name']} obs_dim must be 56")
@@ -62,6 +67,7 @@ def _validate_shard(shard: dict[str, Any], metadata: dict[str, Any]) -> None:
 
 
 def _create_episode_link(source: Path, target: Path) -> None:
+    """Create or replace a merged-view symlink for one episode file."""
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists() or target.is_symlink():
         target.unlink()
@@ -69,6 +75,7 @@ def _create_episode_link(source: Path, target: Path) -> None:
 
 
 def build_manifest(dataset_dir: str | Path, create_links: bool = False) -> dict[str, Any]:
+    """Build sharded dataset manifest, splits, and optional merged episode links."""
     dataset_dir = Path(dataset_dir)
     config = load_shard_config(dataset_dir)
     shards = list(config.get("shards", []))
@@ -176,6 +183,7 @@ def build_manifest(dataset_dir: str | Path, create_links: bool = False) -> dict[
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for manifest generation."""
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset_dir")
     parser.add_argument("--no_links", action="store_true")
@@ -183,6 +191,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the manifest generation command-line entry point."""
     args = parse_args()
     manifest = build_manifest(args.dataset_dir, create_links=not args.no_links)
     print(json.dumps(manifest, indent=2, sort_keys=True))
