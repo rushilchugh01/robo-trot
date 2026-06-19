@@ -1,6 +1,6 @@
 import json
 
-from robo_trot.demos.manifest import build_manifest
+from robo_trot.data_pipeline.manifest import build_manifest
 
 
 def _write_fake_shard(root, name, category, target_steps, teacher_profile, episode_steps):

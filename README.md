@@ -11,11 +11,11 @@ The implementation lives under `robo_trot/` by domain:
 - `robo_trot/robot/`: A1 constants, kinematics, and MuJoCo model inspection helpers.
 - `robo_trot/sim/`: MuJoCo simulation wrappers.
 - `robo_trot/teachers/`: teacher interfaces and teacher controllers.
-- `robo_trot/demos/`: demonstration rollout, dataset writing, sharding, manifests, inspection, and validation.
+- `robo_trot/data_pipeline/`: behavior-cloning data generation, dataset writing, sharding, manifests, inspection, and validation.
 - `robo_trot/policies/`: policy implementations.
 - `robo_trot/training/`: training entry points and utilities.
 
-The `data/*.py` and selected `scripts/*.py` files are thin CLI wrappers around `robo_trot.demos.*`, kept so existing commands continue to work.
+The `data/*.py` and selected `scripts/*.py` files are thin CLI wrappers around `robo_trot.data_pipeline.*`, kept so existing commands continue to work.
 
 ## Quick Commands
 

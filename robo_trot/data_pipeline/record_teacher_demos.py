@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 from tqdm import tqdm
 
-from robo_trot.demos.dataset_writer import DatasetWriter
+from robo_trot.data_pipeline.dataset_writer import DatasetWriter
 from robo_trot.sim.a1_teacher_env import A1TeacherEnv
 from robo_trot.robot.a1 import ACTION_SCALE, OBS_DIM_NO_CONTACTS, OBS_DIM_WITH_CONTACTS, Q_HOME
 from robo_trot.teachers.footspace_cpg_ik import FootspaceCPGIKTeacher

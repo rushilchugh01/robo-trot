@@ -1,7 +1,7 @@
 import numpy as np
 from pathlib import Path
 
-from robo_trot.demos.record_teacher_demos import (
+from robo_trot.data_pipeline.record_teacher_demos import (
     CATEGORY_COMMAND_RANGES,
     contact_slip_metrics,
     make_teacher,

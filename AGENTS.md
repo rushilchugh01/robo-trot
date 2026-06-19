@@ -29,7 +29,7 @@ Keep implementation code under `robo_trot/`:
 - `robo_trot/robot/` for A1 constants, kinematics, and model metadata.
 - `robo_trot/sim/` for MuJoCo environment wrappers.
 - `robo_trot/teachers/` for teacher controller code.
-- `robo_trot/demos/` for rollout recording, dataset writing, sharding, manifests, and validation.
+- `robo_trot/data_pipeline/` for rollout recording, dataset writing, sharding, manifests, and validation.
 - `robo_trot/policies/` and `robo_trot/training/` for policy work.
 
 Keep `data/*.py` and `scripts/*.py` as command-line wrappers unless a script is explicitly debug-only.

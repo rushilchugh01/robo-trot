@@ -3,8 +3,8 @@ import json
 import pytest
 import numpy as np
 
-from robo_trot.demos.dataset_writer import DatasetWriter
-from robo_trot.demos.record_teacher_demos import (
+from robo_trot.data_pipeline.dataset_writer import DatasetWriter
+from robo_trot.data_pipeline.record_teacher_demos import (
     expand_frames_for_playback,
     initial_recording_counters,
     render_q_teacher_episode,

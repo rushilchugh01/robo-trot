@@ -6,8 +6,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from robo_trot.demos.sharded_generation import SHARDS, category_step_totals, total_target_steps
-from robo_trot.demos.record_teacher_demos import CATEGORY_COMMAND_RANGES
+from robo_trot.data_pipeline.sharded_generation import SHARDS, category_step_totals, total_target_steps
+from robo_trot.data_pipeline.record_teacher_demos import CATEGORY_COMMAND_RANGES
 
 
 def load_shard_config(dataset_dir: Path) -> dict[str, Any]:

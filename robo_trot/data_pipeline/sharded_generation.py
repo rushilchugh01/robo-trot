@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from robo_trot.demos.record_teacher_demos import CATEGORY_COMMAND_RANGES
+from robo_trot.data_pipeline.record_teacher_demos import CATEGORY_COMMAND_RANGES
 
 SHARDS: list[dict[str, Any]] = [
     {"name": "shard_00_forward", "category": "forward", "target_steps": 750_000, "seed": 5100},

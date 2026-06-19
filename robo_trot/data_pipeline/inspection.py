@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from robo_trot.demos.dataset_writer import obs_phase_max_error
+from robo_trot.data_pipeline.dataset_writer import obs_phase_max_error
 
 
 def load_episode_paths(dataset_dir: Path) -> list[Path]:

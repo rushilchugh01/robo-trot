@@ -1,6 +1,6 @@
 import sys
 
-from robo_trot.demos import record_teacher_demos as _impl
+from robo_trot.data_pipeline import record_teacher_demos as _impl
 
 
 if __name__ == "__main__":

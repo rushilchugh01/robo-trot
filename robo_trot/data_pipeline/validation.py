@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from robo_trot.demos.dataset_writer import OPTIONAL_ARRAY_TAIL_SHAPES, REQUIRED_ARRAYS, obs_phase_max_error, obs_state_max_error
+from robo_trot.data_pipeline.dataset_writer import OPTIONAL_ARRAY_TAIL_SHAPES, REQUIRED_ARRAYS, obs_phase_max_error, obs_state_max_error
 from robo_trot.robot.a1 import ACTION_SCALE, Q_HOME
 
 @dataclass

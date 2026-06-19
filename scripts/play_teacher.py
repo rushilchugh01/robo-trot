@@ -9,8 +9,8 @@ import numpy as np
 
 from robo_trot.sim.a1_teacher_env import A1TeacherEnv
 from robo_trot.robot.a1 import Q_HOME
-from robo_trot.demos.record_teacher_demos import episode_yaw_delta
-from robo_trot.demos.record_teacher_demos import FOOTSPACE_TEACHER_PROFILES
+from robo_trot.data_pipeline.record_teacher_demos import episode_yaw_delta
+from robo_trot.data_pipeline.record_teacher_demos import FOOTSPACE_TEACHER_PROFILES
 from robo_trot.teachers.footspace_cpg_ik import FootspaceCPGIKTeacher
 
 

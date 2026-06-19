@@ -1,6 +1,6 @@
 import sys
 
-from robo_trot.demos import manifest as _impl
+from robo_trot.data_pipeline import manifest as _impl
 
 
 if __name__ == "__main__":

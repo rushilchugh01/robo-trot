@@ -1,6 +1,6 @@
 import numpy as np
 
-from robo_trot.demos.dataset_writer import DatasetWriter
+from robo_trot.data_pipeline.dataset_writer import DatasetWriter
 from robo_trot.robot.a1 import ACTION_SCALE, Q_HOME
 from scripts.validate_dataset import validate_dataset
 from scripts.inspect_dataset import inspect_dataset
