@@ -56,6 +56,8 @@ Always pass dataset metadata when testing against imitation-learning data. The h
 
 Use `--no_viewer` for headless checks and omit it to watch the robot move live in the MuJoCo viewer.
 
+For visual joint-order debugging, use `--policy_mode joint_probe`. By default this sweeps joint index `1` (`FR_thigh_joint`) with a sine wave so the leg motion is readable.
+
 ## Acceptance Gates
 
 Episodes are rejected if the robot falls, is too short, clips too many action labels, makes too little commanded forward progress, has too little foot clearance, or shows excessive contacted-foot slip. Sliding is a hard failure: `record_teacher_demos.py` reports it as `foot_sliding`, and `inspect_dataset.py` reports aggregate contact-slip metrics from accepted episodes.

@@ -27,6 +27,20 @@ def test_random_policy_rejects_invalid_action_limit():
         RandomPolicy(action_dim=12, action_limit=1.5)
 
 
+def test_sine_joint_probe_policy_sweeps_selected_joint():
+    from robo_trot.policies.probe_policy import SineJointProbePolicy
+
+    policy = SineJointProbePolicy(action_dim=12, amplitude=0.4, frequency_hz=1.0, policy_dt=0.25, joint_index=2)
+    policy.reset(np.random.default_rng(0))
+
+    actions = [policy.act(np.zeros(56, dtype=np.float32)) for _ in range(5)]
+
+    assert actions[0].shape == (12,)
+    assert actions[1][2] > 0.35
+    assert abs(float(actions[1][0])) == 0.0
+    assert float(np.max(np.abs(actions))) <= 0.400001
+
+
 def test_action_label_to_q_des_uses_dataset_convention():
     from robo_trot.policies.action_adapter import action_label_to_q_des
 

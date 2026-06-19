@@ -8,6 +8,7 @@ import mujoco.viewer
 import numpy as np
 
 from robo_trot.policies.random_policy import RandomPolicy
+from robo_trot.policies.probe_policy import SineJointProbePolicy
 from robo_trot.sim.a1_teacher_env import A1TeacherEnv
 from robo_trot.training.policy_rollout import PolicyRolloutHarness, load_dataset_contract
 
@@ -24,7 +25,16 @@ def parse_command(values: list[float] | None) -> np.ndarray:
 def build_harness(args: argparse.Namespace) -> PolicyRolloutHarness:
     """Build the random-policy rollout harness from CLI arguments."""
     env = A1TeacherEnv(args.xml_path, {"use_contacts": args.use_contacts, "episode_seconds": args.seconds + 1.0})
-    policy = RandomPolicy(action_dim=12, action_limit=args.action_limit)
+    if args.policy_mode == "random":
+        policy = RandomPolicy(action_dim=12, action_limit=args.action_limit)
+    else:
+        policy = SineJointProbePolicy(
+            action_dim=12,
+            amplitude=args.probe_amplitude,
+            frequency_hz=args.probe_frequency,
+            policy_dt=env.policy_dt,
+            joint_index=args.probe_joint,
+        )
     contract = load_dataset_contract(args.dataset_metadata) if args.dataset_metadata else None
     return PolicyRolloutHarness(env=env, policy=policy, command=parse_command(args.command), dataset_contract=contract)
 
@@ -65,7 +75,7 @@ def run_viewer(args: argparse.Namespace) -> None:
                     f"step={step} reward={float(reward):.4f} "
                     f"action_abs_max={float(np.max(np.abs(action))):.4f} "
                     f"q_des_min={float(np.min(q_des)):.4f} q_des_max={float(np.max(q_des)):.4f}"
-                )
+                , flush=True)
             viewer.sync()
             if done:
                 print(f"done step={step} reason={info.get('done_reason', 'done')}")
@@ -81,7 +91,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
     parser.add_argument("--dataset_metadata", default="datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json")
     parser.add_argument("--seconds", type=float, default=10.0)
+    parser.add_argument("--policy_mode", choices=("random", "joint_probe"), default="random")
     parser.add_argument("--action_limit", type=float, default=0.25)
+    parser.add_argument("--probe_amplitude", type=float, default=0.35)
+    parser.add_argument("--probe_frequency", type=float, default=0.5)
+    parser.add_argument("--probe_joint", type=int, default=1)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--command", nargs=3, type=float, default=None, metavar=("VX", "VY", "YAW"))
     parser.add_argument("--print_every", type=int, default=25)

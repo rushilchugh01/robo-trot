@@ -11,6 +11,7 @@ def test_core_domains_are_importable_from_robo_trot_package():
         "robo_trot.teachers.footspace_cpg_ik",
         "robo_trot.policies.action_adapter",
         "robo_trot.policies.base",
+        "robo_trot.policies.probe_policy",
         "robo_trot.policies.random_policy",
         "robo_trot.data_pipeline.dataset_writer",
         "robo_trot.data_pipeline.record_teacher_demos",
