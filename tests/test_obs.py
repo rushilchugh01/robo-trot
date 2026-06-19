@@ -1,9 +1,9 @@
 import numpy as np
 from pathlib import Path
 
-from envs.a1_teacher_env import A1TeacherEnv, build_actor_obs
-from robo_trot.a1_constants import OBS_DIM_NO_CONTACTS, OBS_DIM_WITH_CONTACTS, Q_HOME
-from robo_trot.kinematics import quat_to_rotmat, rotate_world_to_body
+from robo_trot.sim.a1_teacher_env import A1TeacherEnv, build_actor_obs
+from robo_trot.robot.a1 import OBS_DIM_NO_CONTACTS, OBS_DIM_WITH_CONTACTS, Q_HOME
+from robo_trot.robot.kinematics import quat_to_rotmat, rotate_world_to_body
 
 
 XML_PATH = Path("assets/mujoco_menagerie/unitree_a1/scene.xml")

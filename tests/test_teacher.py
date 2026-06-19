@@ -1,8 +1,8 @@
 import numpy as np
 from pathlib import Path
 
-from robo_trot.a1_constants import ACTION_SCALE, Q_HOME
-from teachers.footspace_cpg_ik_teacher import FootspaceCPGIKTeacher
+from robo_trot.robot.a1 import ACTION_SCALE, Q_HOME
+from robo_trot.teachers.footspace_cpg_ik import FootspaceCPGIKTeacher
 
 
 XML_PATH = Path("assets/mujoco_menagerie/unitree_a1/scene.xml")

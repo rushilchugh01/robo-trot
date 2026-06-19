@@ -7,9 +7,9 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from robo_trot.a1_constants import ACTION_SCALE, Q_HOME
-from robo_trot.model_info import actuator_joint_maps
-from teachers.base import TeacherOutput
+from robo_trot.robot.a1 import ACTION_SCALE, Q_HOME
+from robo_trot.robot.model_info import actuator_joint_maps
+from robo_trot.teachers.base import TeacherOutput
 
 
 @dataclass

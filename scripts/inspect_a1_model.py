@@ -5,7 +5,7 @@ from pathlib import Path
 
 import mujoco
 
-from robo_trot.model_info import describe_model
+from robo_trot.robot.model_info import describe_model
 
 
 def main() -> None:

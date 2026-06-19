@@ -2,7 +2,7 @@ from pathlib import Path
 
 import mujoco
 
-from robo_trot.model_info import describe_model, format_indexed_names
+from robo_trot.robot.model_info import describe_model, format_indexed_names
 
 
 def test_format_indexed_names_prints_indices_and_names():

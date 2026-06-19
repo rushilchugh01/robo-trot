@@ -5,9 +5,9 @@ import json
 
 import numpy as np
 
-from data.record_teacher_demos import FOOTSPACE_TEACHER_PROFILES, make_teacher
-from envs.a1_teacher_env import A1TeacherEnv
-from robo_trot.a1_constants import Q_HOME
+from robo_trot.demos.record_teacher_demos import FOOTSPACE_TEACHER_PROFILES, make_teacher
+from robo_trot.sim.a1_teacher_env import A1TeacherEnv
+from robo_trot.robot.a1 import Q_HOME
 try:
     from scripts.play_teacher import summarize_rollout
 except ModuleNotFoundError:

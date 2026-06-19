@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from data.launch_5m_shards import (
+from robo_trot.demos.sharded_generation import (
     SHARDS,
     build_shard_command,
     category_step_totals,

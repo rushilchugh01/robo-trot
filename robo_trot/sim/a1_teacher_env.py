@@ -11,9 +11,9 @@ os.environ.setdefault("MUJOCO_GL", "egl")
 import mujoco
 import numpy as np
 
-from robo_trot.a1_constants import GRAVITY_WORLD, KD, KP, OBS_DIM_NO_CONTACTS, OBS_DIM_WITH_CONTACTS, Q_HOME, TAU_LIMIT
-from robo_trot.kinematics import roll_pitch_from_quat, rotate_world_to_body
-from robo_trot.model_info import actuator_joint_maps
+from robo_trot.robot.a1 import GRAVITY_WORLD, KD, KP, OBS_DIM_NO_CONTACTS, OBS_DIM_WITH_CONTACTS, Q_HOME, TAU_LIMIT
+from robo_trot.robot.kinematics import roll_pitch_from_quat, rotate_world_to_body
+from robo_trot.robot.model_info import actuator_joint_maps
 
 
 def build_actor_obs(

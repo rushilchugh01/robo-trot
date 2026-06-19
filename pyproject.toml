@@ -20,7 +20,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["robo_trot*", "teachers*", "envs*", "data*"]
+include = ["robo_trot*", "data*"]
 exclude = ["assets*", "scripts*", "tests*", "docs*"]
 
 [tool.pytest.ini_options]

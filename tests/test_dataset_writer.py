@@ -3,15 +3,15 @@ import json
 import pytest
 import numpy as np
 
-from data.dataset_writer import DatasetWriter
-from data.record_teacher_demos import (
+from robo_trot.demos.dataset_writer import DatasetWriter
+from robo_trot.demos.record_teacher_demos import (
     expand_frames_for_playback,
     initial_recording_counters,
     render_q_teacher_episode,
     rollout_episode,
     write_debug_exports,
 )
-from robo_trot.a1_constants import Q_HOME
+from robo_trot.robot.a1 import Q_HOME
 from scripts.inspect_dataset import inspect_dataset
 
 
