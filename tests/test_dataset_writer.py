@@ -12,7 +12,7 @@ from robo_trot.data_pipeline.record_teacher_demos import (
     write_debug_exports,
 )
 from robo_trot.robot.a1 import Q_HOME
-from scripts.inspect_dataset import inspect_dataset
+from scripts.data.inspect_dataset import inspect_dataset
 
 
 def make_episode(length: int = 3) -> dict:

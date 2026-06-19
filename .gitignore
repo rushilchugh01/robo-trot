@@ -11,6 +11,7 @@ __pycache__/
 # Debug/review-only helper scripts. These are local probes, not core pipeline.
 scripts/*_debug.py
 scripts/**/*_debug.py
+scripts/debug/
 data/*_debug.py
 tests/*_debug.py
 docs/debug_review_helpers.md

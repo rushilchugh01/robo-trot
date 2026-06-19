@@ -15,7 +15,7 @@ The implementation lives under `robo_trot/` by domain:
 - `robo_trot/policies/`: policy implementations.
 - `robo_trot/training/`: training entry points and utilities.
 
-The root `scripts/*.py` files are compatibility wrappers. Script implementations are grouped by purpose:
+Scripts are grouped by purpose under `scripts/`; the root `scripts/` directory only contains package metadata and subdirectories:
 
 - `scripts/assets/`: asset fetch/setup.
 - `scripts/robot/`: MuJoCo model and A1 mapping inspection.
@@ -28,18 +28,18 @@ The `data/*.py` files are CLI wrappers around `robo_trot.data_pipeline.*`, kept 
 ## Quick Commands
 
 ```bash
-python scripts/fetch_menagerie_a1.py --out_dir assets/mujoco_menagerie
-python scripts/inspect_a1_model.py --xml_path assets/mujoco_menagerie/unitree_a1/scene.xml
-python scripts/play_teacher.py --mode home --seconds 30 --no_viewer
-python scripts/play_teacher.py --teacher footspace --teacher_profile strict_walk --mode trot --seconds 20 --no_viewer
-python scripts/sanity_check_teacher.py --stand_seconds 30 --walk_seconds 20 --walk_vx 0.5 --teacher_profile strict_walk
-python scripts/sanity_check_random_policy.py \
+python scripts/assets/fetch_menagerie_a1.py --out_dir assets/mujoco_menagerie
+python scripts/robot/inspect_a1_model.py --xml_path assets/mujoco_menagerie/unitree_a1/scene.xml
+python scripts/teacher/play_teacher.py --mode home --seconds 30 --no_viewer
+python scripts/teacher/play_teacher.py --teacher footspace --teacher_profile strict_walk --mode trot --seconds 20 --no_viewer
+python scripts/teacher/sanity_check_teacher.py --stand_seconds 30 --walk_seconds 20 --walk_vx 0.5 --teacher_profile strict_walk
+python scripts/policy/sanity_check_random_policy.py \
   --xml_path assets/mujoco_menagerie/unitree_a1/scene.xml \
   --dataset_metadata datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json
-python scripts/audit_action_mapping.py \
+python scripts/policy/audit_action_mapping.py \
   --xml_path assets/mujoco_menagerie/unitree_a1/scene.xml \
   --dataset_metadata datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json
-python scripts/play_random_policy.py \
+python scripts/policy/play_random_policy.py \
   --xml_path assets/mujoco_menagerie/unitree_a1/scene.xml \
   --dataset_metadata datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json \
   --seconds 20 \
@@ -55,7 +55,7 @@ python data/record_teacher_demos.py \
   --seed 0
 ```
 
-Run `scripts/validate_dataset.py` on any dataset before using it for cloning. The validator checks array shapes, `action_label == clip((q_teacher - q_home) / action_scale)`, episode reset/done boundaries, that the `sin(phase), cos(phase)` fields inside `obs` match the saved `phase` column, and that the observation state slices match the saved raw state arrays for that same timestep. Older review artifacts generated before these alignment checks are useful only for visual comparison; regenerate them before using their `.npz` episodes as training data.
+Run `scripts/data/validate_dataset.py` on any dataset before using it for cloning. The validator checks array shapes, `action_label == clip((q_teacher - q_home) / action_scale)`, episode reset/done boundaries, that the `sin(phase), cos(phase)` fields inside `obs` match the saved `phase` column, and that the observation state slices match the saved raw state arrays for that same timestep. Older review artifacts generated before these alignment checks are useful only for visual comparison; regenerate them before using their `.npz` episodes as training data.
 
 The default observation includes foot contacts and has `obs_dim=56`. For the fallback observation without contact features, add `--no-use_contacts`; the episode still stores `foot_contacts` and `foot_pos` as debug arrays, but the actor observation has `obs_dim=52`.
 
@@ -65,7 +65,7 @@ The random policy harness verifies the future policy loop without training. It r
 
 Always pass dataset metadata when testing against imitation-learning data. The harness checks joint names, actuator names, `q_home`, `action_scale`, observation dimension, and action dimension before stepping the robot.
 
-Run `scripts/audit_action_mapping.py` when changing the environment, model XML, action adapter, or policy harness. It probes each normalized action index and reports the expected q-target delta, the MuJoCo control-slot delta, the observed joint delta, and the dominant moving joint. All 12 rows must pass before trusting a policy rollout against a dataset.
+Run `scripts/policy/audit_action_mapping.py` when changing the environment, model XML, action adapter, or policy harness. It probes each normalized action index and reports the expected q-target delta, the MuJoCo control-slot delta, the observed joint delta, and the dominant moving joint. All 12 rows must pass before trusting a policy rollout against a dataset.
 
 Use `--no_viewer` for headless checks and omit it to watch the robot move live in the MuJoCo viewer.
 
@@ -106,7 +106,7 @@ python data/launch_5m_shards.py \
   --workers 8 \
   --total_steps 5000000
 python data/build_5m_manifest.py datasets/a1_teacher_flat_5m_v001
-python scripts/inspect_dataset.py datasets/a1_teacher_flat_5m_v001
+python scripts/data/inspect_dataset.py datasets/a1_teacher_flat_5m_v001
 ```
 
 The default 5M composition is:

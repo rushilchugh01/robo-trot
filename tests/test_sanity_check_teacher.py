@@ -1,7 +1,7 @@
 import subprocess
 import sys
 
-from scripts.sanity_check_teacher import evaluate_rollout
+from scripts.teacher.sanity_check_teacher import evaluate_rollout
 
 
 def test_evaluate_rollout_accepts_survived_rollout_with_required_progress():
@@ -58,7 +58,7 @@ def test_evaluate_rollout_rejects_short_or_unstable_rollout():
 
 def test_sanity_check_teacher_can_run_as_direct_script():
     result = subprocess.run(
-        [sys.executable, "scripts/sanity_check_teacher.py", "--help"],
+        [sys.executable, "scripts/teacher/sanity_check_teacher.py", "--help"],
         check=False,
         capture_output=True,
         text=True,

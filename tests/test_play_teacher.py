@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from scripts.play_teacher import summary_line, summarize_rollout
+from scripts.teacher.play_teacher import summary_line, summarize_rollout
 
 
 def test_summarize_rollout_reports_core_sanity_metrics():
