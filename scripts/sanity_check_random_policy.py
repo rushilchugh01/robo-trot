@@ -1,0 +1,59 @@
+from __future__ import annotations
+
+import argparse
+import json
+
+import numpy as np
+
+from robo_trot.policies.random_policy import RandomPolicy
+from robo_trot.sim.a1_teacher_env import A1TeacherEnv
+from robo_trot.training.policy_rollout import PolicyRolloutHarness, load_dataset_contract, validate_env_contract
+
+
+def run_check(args: argparse.Namespace) -> dict:
+    """Run a headless random-policy smoke check and return a report."""
+    env = A1TeacherEnv(args.xml_path, {"use_contacts": args.use_contacts, "episode_seconds": args.seconds + 1.0})
+    contract = load_dataset_contract(args.dataset_metadata)
+    validate_env_contract(env, contract)
+    policy = RandomPolicy(action_dim=12, action_limit=args.action_limit)
+    harness = PolicyRolloutHarness(env=env, policy=policy, command=np.asarray(args.command, dtype=np.float32), dataset_contract=contract)
+    summary = harness.run(seconds=args.seconds, seed=args.seed)
+    report = {
+        **summary.__dict__,
+        "contract_ok": True,
+        "joint_names": env.joint_names,
+        "actuator_names": env.actuator_names,
+    }
+    return report
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the random-policy sanity check."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
+    parser.add_argument("--dataset_metadata", default="datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json")
+    parser.add_argument("--seconds", type=float, default=1.0)
+    parser.add_argument("--action_limit", type=float, default=0.25)
+    parser.add_argument("--min_joint_delta", type=float, default=1e-4)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--command", nargs=3, type=float, default=[0.0, 0.0, 0.0], metavar=("VX", "VY", "YAW"))
+    parser.add_argument("--use_contacts", action=argparse.BooleanOptionalAction, default=True)
+    return parser.parse_args()
+
+
+def main() -> None:
+    """Run the random-policy sanity-check command-line entry point."""
+    args = parse_args()
+    report = run_check(args)
+    print(json.dumps(report, indent=2, sort_keys=True))
+    if (
+        not bool(report["contract_ok"])
+        or bool(report["had_nan"])
+        or int(report["steps"]) <= 0
+        or float(report["max_joint_delta"]) < float(args.min_joint_delta)
+    ):
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()

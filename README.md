@@ -25,6 +25,14 @@ python scripts/inspect_a1_model.py --xml_path assets/mujoco_menagerie/unitree_a1
 python scripts/play_teacher.py --mode home --seconds 30 --no_viewer
 python scripts/play_teacher.py --teacher footspace --teacher_profile strict_walk --mode trot --seconds 20 --no_viewer
 python scripts/sanity_check_teacher.py --stand_seconds 30 --walk_seconds 20 --walk_vx 0.5 --teacher_profile strict_walk
+python scripts/sanity_check_random_policy.py \
+  --xml_path assets/mujoco_menagerie/unitree_a1/scene.xml \
+  --dataset_metadata datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json
+python scripts/play_random_policy.py \
+  --xml_path assets/mujoco_menagerie/unitree_a1/scene.xml \
+  --dataset_metadata datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json \
+  --seconds 20 \
+  --action_limit 0.25
 python data/record_teacher_demos.py \
   --teacher footspace \
   --teacher_profile strict_walk \
@@ -39,6 +47,14 @@ python data/record_teacher_demos.py \
 Run `scripts/validate_dataset.py` on any dataset before using it for cloning. The validator checks array shapes, `action_label == clip((q_teacher - q_home) / action_scale)`, episode reset/done boundaries, that the `sin(phase), cos(phase)` fields inside `obs` match the saved `phase` column, and that the observation state slices match the saved raw state arrays for that same timestep. Older review artifacts generated before these alignment checks are useful only for visual comparison; regenerate them before using their `.npz` episodes as training data.
 
 The default observation includes foot contacts and has `obs_dim=56`. For the fallback observation without contact features, add `--no-use_contacts`; the episode still stores `foot_contacts` and `foot_pos` as debug arrays, but the actor observation has `obs_dim=52`.
+
+## Random Policy Harness
+
+The random policy harness verifies the future policy loop without training. It reads actor observations, emits normalized 12D action labels, converts labels with `q_des = q_home + action_scale * action_label`, and applies those raw joint targets through the MuJoCo environment.
+
+Always pass dataset metadata when testing against imitation-learning data. The harness checks joint names, actuator names, `q_home`, `action_scale`, observation dimension, and action dimension before stepping the robot.
+
+Use `--no_viewer` for headless checks and omit it to watch the robot move live in the MuJoCo viewer.
 
 ## Acceptance Gates
 

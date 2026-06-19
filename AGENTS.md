@@ -20,7 +20,9 @@ Core scripts that should remain commit candidates include:
 - `scripts/inspect_a1_model.py`
 - `scripts/inspect_dataset.py`
 - `scripts/play_teacher.py`
+- `scripts/play_random_policy.py`
 - `scripts/sanity_check_teacher.py`
+- `scripts/sanity_check_random_policy.py`
 - `scripts/validate_dataset.py`
 
 ## Package Layout
@@ -30,6 +32,7 @@ Keep implementation code under `robo_trot/`:
 - `robo_trot/sim/` for MuJoCo environment wrappers.
 - `robo_trot/teachers/` for teacher controller code.
 - `robo_trot/data_pipeline/` for rollout recording, dataset writing, sharding, manifests, and validation.
-- `robo_trot/policies/` and `robo_trot/training/` for policy work.
+- `robo_trot/policies/` for policy implementations and action conversion.
+- `robo_trot/training/` for policy rollout harnesses, contract checks, and training utilities.
 
 Keep `data/*.py` and `scripts/*.py` as command-line wrappers unless a script is explicitly debug-only.
