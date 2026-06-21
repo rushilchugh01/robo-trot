@@ -204,6 +204,26 @@ def test_evaluator_candidates_respect_model_filter(tmp_path):
     assert [(model, record.update) for model, record in candidates] == [("txl", 1000)]
 
 
+def test_evaluator_waits_for_backlog_after_training_completion(tmp_path):
+    """Evaluator exit requires both final training metrics and drained evals."""
+    from robo_trot.training.checkpointing import save_checkpoint_atomic
+    from robo_trot.training.parallel_train_bc import _evaluator_ready_to_exit
+
+    save_checkpoint_atomic(tmp_path / "mlp" / "checkpoints" / "step_000000100", metadata={"model": "mlp", "update": 100})
+    metrics_path = tmp_path / "mlp" / "metrics.jsonl"
+    metrics_path.parent.mkdir(parents=True, exist_ok=True)
+    metrics_path.write_text(json.dumps({"model_type": "mlp", "update": 100}) + "\n")
+
+    assert not _evaluator_ready_to_exit(tmp_path, max_updates=100, eval_every=100, evaluated=set(), models=("mlp",))
+    assert _evaluator_ready_to_exit(
+        tmp_path,
+        max_updates=100,
+        eval_every=100,
+        evaluated={("mlp", 100)},
+        models=("mlp",),
+    )
+
+
 def test_eval_reward_terms_are_logged_separately():
     """Reward computation returns a scalar total plus named diagnostic terms."""
     from robo_trot.training.eval_reward import compute_eval_reward

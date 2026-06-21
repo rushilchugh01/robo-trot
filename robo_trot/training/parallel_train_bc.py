@@ -663,53 +663,70 @@ def evaluator_loop_main(config: dict[str, Any]) -> None:
     eval_index = 0
     models = _enabled_models(args)
     while True:
-        any_new = False
-        for model_type, record in _interleaved_eval_candidates(run_dir, int(args.eval_every), evaluated, models=models)[:1]:
-            key = (model_type, int(record.update))
-            try:
-                rows = evaluate_checkpoint_set(
+        candidates = _interleaved_eval_candidates(run_dir, int(args.eval_every), evaluated, models=models)
+        if not candidates:
+            if _evaluator_ready_to_exit(run_dir, int(args.max_updates), int(args.eval_every), evaluated, models=models):
+                break
+            time.sleep(2.0)
+            continue
+        model_type, record = candidates[0]
+        key = (model_type, int(record.update))
+        try:
+            rows = evaluate_checkpoint_set(
+                checkpoint=record.path,
+                model_type=model_type,
+                xml_path=args.xml_path,
+                dataset_metadata=_resolve_dataset_metadata(args),
+                out_dir=eval_dir,
+                seconds=float(args.eval_seconds),
+                checkpoint_update=int(record.update),
+                gif_every_eval=int(args.gif_every_eval),
+                gif_fps=int(args.eval_gif_fps),
+                gif_seconds=float(args.eval_gif_seconds),
+                gif_width=int(args.eval_gif_width),
+                gif_height=int(args.eval_gif_height),
+                eval_index=eval_index,
+                seed=int(args.seed) + int(record.update),
+            )
+            eval_row = aggregate_eval_rows(rows, model_type, int(record.update))
+            eval_row.update(
+                _checkpoint_dataset_action_metrics(
+                    args=args,
                     checkpoint=record.path,
                     model_type=model_type,
-                    xml_path=args.xml_path,
-                    dataset_metadata=_resolve_dataset_metadata(args),
-                    out_dir=eval_dir,
-                    seconds=float(args.eval_seconds),
-                    checkpoint_update=int(record.update),
-                    gif_every_eval=int(args.gif_every_eval),
-                    gif_fps=int(args.eval_gif_fps),
-                    gif_seconds=float(args.eval_gif_seconds),
-                    gif_width=int(args.eval_gif_width),
-                    gif_height=int(args.eval_gif_height),
-                    eval_index=eval_index,
                     seed=int(args.seed) + int(record.update),
                 )
-                eval_row = aggregate_eval_rows(rows, model_type, int(record.update))
-                eval_row.update(
-                    _checkpoint_dataset_action_metrics(
-                        args=args,
-                        checkpoint=record.path,
-                        model_type=model_type,
-                        seed=int(args.seed) + int(record.update),
-                    )
-                )
-                append_eval_metrics(eval_dir / "metrics.jsonl", eval_row)
-                _update_best_eval_alias(run_dir, model_type)
-            except Exception as exc:
-                append_eval_metrics(
-                    eval_dir / "metrics.jsonl",
-                    {
-                        "model_type": model_type,
-                        "checkpoint_update": int(record.update),
-                        "eval_error": f"{type(exc).__name__}: {exc}",
-                        "wall_time": time.time(),
-                    },
-                )
-            evaluated.add(key)
-            any_new = True
-            eval_index += 1
-        if _training_complete(run_dir, int(args.max_updates), models=models):
-            break
-        time.sleep(5.0 if any_new else 2.0)
+            )
+            append_eval_metrics(eval_dir / "metrics.jsonl", eval_row)
+            _update_best_eval_alias(run_dir, model_type)
+        except Exception as exc:
+            append_eval_metrics(
+                eval_dir / "metrics.jsonl",
+                {
+                    "model_type": model_type,
+                    "checkpoint_update": int(record.update),
+                    "eval_error": f"{type(exc).__name__}: {exc}",
+                    "wall_time": time.time(),
+                },
+            )
+        evaluated.add(key)
+        eval_index += 1
+
+
+def _evaluator_ready_to_exit(
+    run_dir: Path,
+    max_updates: int,
+    eval_every: int,
+    evaluated: set[tuple[str, int]],
+    models: tuple[str, ...] = ("mlp", "txl"),
+) -> bool:
+    """Return whether evaluator work is complete for selected models.
+
+    Training completion alone is not enough because MuJoCo eval can lag behind.
+    """
+    if not _training_complete(run_dir, int(max_updates), models=models):
+        return False
+    return not _interleaved_eval_candidates(run_dir, int(eval_every), evaluated, models=models)
 
 
 def _interleaved_eval_candidates(
