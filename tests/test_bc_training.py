@@ -238,6 +238,20 @@ def test_backfill_discovers_missing_checkpoint_evals(tmp_path):
     assert [(task.model_type, task.checkpoint_update) for task in tasks] == [("mlp", 100)]
 
 
+def test_backfill_chunks_tasks_for_worker_reuse(tmp_path):
+    """Backfill chunks amortize MuJoCo setup across several checkpoints."""
+    from robo_trot.training.eval_backfill import BackfillTask, chunk_backfill_tasks
+
+    tasks = [
+        BackfillTask(model_type="mlp", checkpoint=f"ckpt_{index}", checkpoint_update=index)
+        for index in range(5)
+    ]
+
+    chunks = chunk_backfill_tasks(tasks, chunk_size=2)
+
+    assert [[task.checkpoint_update for task in chunk] for chunk in chunks] == [[0, 1], [2, 3], [4]]
+
+
 def test_backfill_skips_complete_eval_rows_with_media(tmp_path):
     """Backfill discovery skips checkpoints with reward, dataset loss, and MP4s."""
     from robo_trot.training.checkpointing import save_checkpoint_atomic
@@ -482,6 +496,7 @@ def test_backfill_checkpoint_eval_script_exposes_ray_flags():
     assert args.models == "mlp"
     assert args.eval_every == 100
     assert args.workers == 4
+    assert args.chunk_size == 8
     assert args.command_labels == "vx03"
     assert args.media_seconds == 10.0
     assert args.media_fps == 30

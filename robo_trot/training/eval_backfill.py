@@ -17,6 +17,8 @@ from robo_trot.training.evaluate_checkpoint import (
     evaluate_checkpoint_set,
     evaluate_dataset_action_loss,
     load_policy_from_checkpoint,
+    rollout_result_to_metrics,
+    run_policy_eval_episode,
     select_eval_commands,
 )
 from robo_trot.training.torch_utils import configure_single_thread_torch
@@ -47,6 +49,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max_update", type=int, default=0)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--cpus_per_task", type=float, default=1.0)
+    parser.add_argument("--chunk_size", type=int, default=8)
     parser.add_argument("--xml_path", default="assets/mujoco_menagerie/unitree_a1/scene.xml")
     parser.add_argument("--dataset_dir", default="datasets/a1_teacher_flat_7m_v001_main")
     parser.add_argument(
@@ -241,6 +244,37 @@ def evaluate_backfill_task(config: dict[str, Any], task_dict: dict[str, Any]) ->
         }
 
 
+def evaluate_backfill_chunk(config: dict[str, Any], task_dicts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Evaluate a sequence of checkpoints with one MuJoCo env setup.
+
+    The action-mapping audit and dataset contract validation run once per worker chunk.
+    """
+    configure_single_thread_torch()
+    tasks = [BackfillTask(**task_dict) for task_dict in task_dicts]
+    try:
+        env = _build_checked_eval_env(config)
+    except Exception as exc:
+        return [_append_task_error(config, task, exc) for task in tasks]
+    results: list[dict[str, Any]] = []
+    for task in tasks:
+        result = _evaluate_backfill_task_with_env(config, task, env)
+        results.append(result)
+        print(
+            f"[backfill-worker] {task.model_type} step_{int(task.checkpoint_update):09d} {result['status']}",
+            flush=True,
+        )
+    return results
+
+
+def chunk_backfill_tasks(tasks: list[BackfillTask], chunk_size: int) -> list[list[BackfillTask]]:
+    """Split tasks into fixed-size chunks for Ray worker reuse.
+
+    Small chunks keep load balancing responsive while amortizing MuJoCo setup.
+    """
+    size = max(1, int(chunk_size))
+    return [tasks[index : index + size] for index in range(0, len(tasks), size)]
+
+
 def append_eval_metrics_locked(run_dir: str | Path, row: dict[str, Any]) -> None:
     """Append one eval row while holding a run-local file lock.
 
@@ -269,18 +303,20 @@ def _run_backfill_with_ray(config: dict[str, Any], tasks: list[BackfillTask]) ->
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError("ray is required when --ray is passed") from exc
     ray.init(address=config.get("ray_address", "auto"))
-    remote_eval = ray.remote(num_cpus=float(config.get("cpus_per_task", 1.0)))(evaluate_backfill_task)
-    pending = [remote_eval.remote(config, asdict(task)) for task in tasks]
+    chunks = chunk_backfill_tasks(tasks, int(config.get("chunk_size", 1)))
+    remote_eval = ray.remote(num_cpus=float(config.get("cpus_per_task", 1.0)))(evaluate_backfill_chunk)
+    pending = [remote_eval.remote(config, [asdict(task) for task in chunk]) for chunk in chunks]
     results: list[dict[str, Any]] = []
     while pending:
         done, pending = ray.wait(pending, num_returns=1)
-        result = ray.get(done[0])
-        results.append(result)
-        print(
-            f"[backfill] {len(results)}/{len(tasks)} {result['model_type']} "
-            f"step_{int(result['checkpoint_update']):09d} {result['status']}",
-            flush=True,
-        )
+        chunk_results = ray.get(done[0])
+        results.extend(chunk_results)
+        for result in chunk_results:
+            print(
+                f"[backfill] {len(results)}/{len(tasks)} {result['model_type']} "
+                f"step_{int(result['checkpoint_update']):09d} {result['status']}",
+                flush=True,
+            )
     return results
 
 
@@ -291,19 +327,101 @@ def _run_backfill_locally(config: dict[str, Any], tasks: list[BackfillTask]) -> 
     """
     workers = max(1, int(config.get("workers", 1)))
     if workers == 1:
-        return [evaluate_backfill_task(config, asdict(task)) for task in tasks]
+        results: list[dict[str, Any]] = []
+        for chunk in chunk_backfill_tasks(tasks, int(config.get("chunk_size", 1))):
+            results.extend(evaluate_backfill_chunk(config, [asdict(task) for task in chunk]))
+        return results
     results: list[dict[str, Any]] = []
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(evaluate_backfill_task, config, asdict(task)) for task in tasks]
+        chunks = chunk_backfill_tasks(tasks, int(config.get("chunk_size", 1)))
+        futures = [pool.submit(evaluate_backfill_chunk, config, [asdict(task) for task in chunk]) for chunk in chunks]
         for index, future in enumerate(concurrent.futures.as_completed(futures), start=1):
-            result = future.result()
-            results.append(result)
-            print(
-                f"[backfill] {index}/{len(tasks)} {result['model_type']} "
-                f"step_{int(result['checkpoint_update']):09d} {result['status']}",
-                flush=True,
-            )
+            chunk_results = future.result()
+            results.extend(chunk_results)
+            print(f"[backfill] chunk {index}/{len(chunks)} completed total_results={len(results)}", flush=True)
     return results
+
+
+def _evaluate_backfill_task_with_env(config: dict[str, Any], task: BackfillTask, env: Any) -> dict[str, Any]:
+    """Evaluate one checkpoint using an already validated MuJoCo env.
+
+    Rows are appended immediately so interrupted chunk workers keep progress.
+    """
+    run_dir = Path(config["run_dir"])
+    try:
+        policy = load_policy_from_checkpoint(task.checkpoint, task.model_type)
+        rows = []
+        eval_dir = run_dir / "eval"
+        step_dir = eval_dir / "media" / f"step_{int(task.checkpoint_update):09d}"
+        for command_index, eval_command in enumerate(select_eval_commands(config.get("command_labels", "vx03"))):
+            media_path = step_dir / f"{task.model_type}_{eval_command.label}.mp4"
+            result = run_policy_eval_episode(
+                env=env,
+                policy=policy,
+                eval_command=eval_command,
+                seconds=float(config["seconds"]),
+                seed=int(config["seed"]) + int(task.checkpoint_update) + int(command_index),
+                save_media=media_path,
+                gif_fps=int(config["media_fps"]),
+                gif_seconds=float(config["media_seconds"]),
+                gif_width=int(config["media_width"]),
+                gif_height=int(config["media_height"]),
+            )
+            rows.append(
+                rollout_result_to_metrics(
+                    result,
+                    task.model_type,
+                    Path(task.checkpoint),
+                    int(task.checkpoint_update),
+                    root_dir=run_dir,
+                )
+            )
+        row = aggregate_eval_rows(rows, task.model_type, int(task.checkpoint_update))
+        row.update(_dataset_action_metrics_for_policy(config, task, policy))
+        append_eval_metrics_locked(run_dir, row)
+        return {"status": "ok", "model_type": task.model_type, "checkpoint_update": int(task.checkpoint_update)}
+    except Exception as exc:
+        return _append_task_error(config, task, exc)
+
+
+def _append_task_error(config: dict[str, Any], task: BackfillTask, exc: Exception) -> dict[str, Any]:
+    """Append one checkpoint eval error row and return worker status.
+
+    Error rows prevent silent loss when a checkpoint cannot be evaluated.
+    """
+    row = {
+        "model_type": task.model_type,
+        "checkpoint_update": int(task.checkpoint_update),
+        "eval_error": f"{type(exc).__name__}: {exc}",
+        "wall_time": time.time(),
+    }
+    append_eval_metrics_locked(Path(config["run_dir"]), row)
+    return {
+        "status": "error",
+        "model_type": task.model_type,
+        "checkpoint_update": int(task.checkpoint_update),
+        "error": row["eval_error"],
+    }
+
+
+def _build_checked_eval_env(config: dict[str, Any]) -> Any:
+    """Create one MuJoCo eval environment and validate fixed contracts.
+
+    The action mapping audit is intentionally once per worker chunk.
+    """
+    from robo_trot.sim.a1_teacher_env import A1TeacherEnv
+    from robo_trot.training.action_mapping_audit import audit_action_mapping
+    from robo_trot.training.policy_rollout import load_dataset_contract, validate_env_contract
+
+    env = A1TeacherEnv(config["xml_path"], {"episode_seconds": float(config["seconds"]), "use_contacts": True})
+    dataset_metadata = _optional_path(config.get("dataset_metadata"))
+    if dataset_metadata is not None:
+        validate_env_contract(env, load_dataset_contract(dataset_metadata))
+    audit_results = audit_action_mapping(env, action_value=0.5, settle_steps=3, min_observed_delta=1e-5)
+    if not all(result.passed for result in audit_results):
+        failed = [result.reason for result in audit_results if not result.passed]
+        raise ValueError(f"action mapping audit failed before eval: {failed}")
+    return env
 
 
 def _dataset_action_metrics(config: dict[str, Any], task: BackfillTask) -> dict[str, Any]:
@@ -313,6 +431,20 @@ def _dataset_action_metrics(config: dict[str, Any], task: BackfillTask) -> dict[
     """
     try:
         policy = load_policy_from_checkpoint(task.checkpoint, task.model_type)
+        return _dataset_action_metrics_for_policy(config, task, policy)
+    except Exception as exc:
+        return {
+            "dataset_eval_split": str(config.get("dataset_eval_split", "test")),
+            "dataset_eval_error": f"{type(exc).__name__}: {exc}",
+        }
+
+
+def _dataset_action_metrics_for_policy(config: dict[str, Any], task: BackfillTask, policy: Any) -> dict[str, Any]:
+    """Compute held-out action-label metrics for an already loaded policy.
+
+    Reusing the rollout policy avoids loading checkpoint weights twice.
+    """
+    try:
         return evaluate_dataset_action_loss(
             policy=policy,
             model_type=task.model_type,
