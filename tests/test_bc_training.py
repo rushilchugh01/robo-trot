@@ -266,6 +266,38 @@ def test_backfill_skips_complete_eval_rows_with_media(tmp_path):
     assert tasks == []
 
 
+def test_backfill_completion_can_require_only_selected_vx_command(tmp_path):
+    """Backfill completion checks can target one MuJoCo command label."""
+    from robo_trot.training.checkpointing import save_checkpoint_atomic
+    from robo_trot.training.eval_backfill import checkpoint_eval_complete
+
+    save_checkpoint_atomic(tmp_path / "mlp" / "checkpoints" / "step_000000100", metadata={"model": "mlp", "update": 100})
+    media = tmp_path / "eval" / "media" / "step_000000100" / "mlp_vx03.mp4"
+    media.parent.mkdir(parents=True, exist_ok=True)
+    media.write_bytes(b"mp4")
+    metrics = {
+        "model_type": "mlp",
+        "checkpoint_update": 100,
+        "eval_reward_mean": 1.0,
+        "dataset_eval_action_mse": 0.1,
+        "media_paths": {"vx03": media.relative_to(tmp_path).as_posix()},
+    }
+    (tmp_path / "eval" / "metrics.jsonl").write_text(json.dumps(metrics) + "\n")
+
+    assert checkpoint_eval_complete(tmp_path, "mlp", 100, command_labels="vx03")
+    assert not checkpoint_eval_complete(tmp_path, "mlp", 100, command_labels="all")
+
+
+def test_eval_command_selector_filters_fixed_commands():
+    """Eval command selection supports mass vx-only checkpoint sweeps."""
+    from robo_trot.training.evaluate_checkpoint import select_eval_commands
+
+    commands = select_eval_commands("vx03")
+
+    assert [command.label for command in commands] == ["vx03"]
+    assert len(select_eval_commands("all")) == 5
+
+
 def test_eval_reward_terms_are_logged_separately():
     """Reward computation returns a scalar total plus named diagnostic terms."""
     from robo_trot.training.eval_reward import compute_eval_reward
@@ -450,6 +482,7 @@ def test_backfill_checkpoint_eval_script_exposes_ray_flags():
     assert args.models == "mlp"
     assert args.eval_every == 100
     assert args.workers == 4
+    assert args.command_labels == "vx03"
     assert args.media_seconds == 10.0
     assert args.media_fps == 30
     assert args.ray

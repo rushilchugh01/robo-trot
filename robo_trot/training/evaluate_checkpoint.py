@@ -58,6 +58,26 @@ FIXED_EVAL_COMMANDS = (
 )
 
 
+def select_eval_commands(command_labels: str | list[str] | tuple[str, ...] | None = None) -> tuple[EvalCommand, ...]:
+    """Return fixed eval commands selected by label.
+
+    `None` and `all` preserve the full evaluator command suite.
+    """
+    if command_labels is None:
+        return FIXED_EVAL_COMMANDS
+    if isinstance(command_labels, str):
+        labels = tuple(part.strip() for part in command_labels.split(",") if part.strip())
+    else:
+        labels = tuple(str(part).strip() for part in command_labels if str(part).strip())
+    if not labels or labels == ("all",):
+        return FIXED_EVAL_COMMANDS
+    by_label = {command.label: command for command in FIXED_EVAL_COMMANDS}
+    invalid = [label for label in labels if label not in by_label]
+    if invalid:
+        raise ValueError(f"unknown eval command label(s): {invalid}")
+    return tuple(by_label[label] for label in dict.fromkeys(labels))
+
+
 def collect_policy_checkpoints(run_dir: str | Path, model: str) -> list[CheckpointRecord]:
     """Return complete checkpoints for one model under a comparison run.
 
@@ -273,8 +293,9 @@ def evaluate_checkpoint_set(
     gif_height: int = 180,
     eval_index: int = 0,
     seed: int = 0,
+    command_labels: str | list[str] | tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
-    """Evaluate a checkpoint on all fixed commands and persist per-model MP4s.
+    """Evaluate a checkpoint on selected fixed commands and persist MP4s.
 
     The returned metrics can be appended directly to `eval/metrics.jsonl`.
     """
@@ -291,7 +312,7 @@ def evaluate_checkpoint_set(
         raise ValueError("action mapping audit failed before eval")
     step_dir = Path(out_dir) / "media" / f"step_{update:09d}"
     rows: list[dict[str, Any]] = []
-    for command_index, eval_command in enumerate(FIXED_EVAL_COMMANDS):
+    for command_index, eval_command in enumerate(select_eval_commands(command_labels)):
         save_media = None
         if int(gif_every_eval) > 0 and int(eval_index) % int(gif_every_eval) == 0:
             save_media = step_dir / f"{model_type}_{eval_command.label}.mp4"

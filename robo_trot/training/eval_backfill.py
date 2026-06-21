@@ -11,13 +11,13 @@ from typing import Any
 
 from robo_trot.training.checkpointing import update_checkpoint_alias
 from robo_trot.training.evaluate_checkpoint import (
-    FIXED_EVAL_COMMANDS,
     aggregate_eval_rows,
     append_eval_metrics,
     collect_policy_checkpoints,
     evaluate_checkpoint_set,
     evaluate_dataset_action_loss,
     load_policy_from_checkpoint,
+    select_eval_commands,
 )
 from robo_trot.training.torch_utils import configure_single_thread_torch
 
@@ -54,6 +54,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json",
     )
     parser.add_argument("--seconds", type=float, default=10.0)
+    parser.add_argument("--command_labels", default="vx03")
     parser.add_argument("--media_seconds", type=float, default=10.0)
     parser.add_argument("--media_fps", type=int, default=30)
     parser.add_argument("--media_width", type=int, default=320)
@@ -93,6 +94,7 @@ def run_backfill(args: argparse.Namespace) -> list[dict[str, Any]]:
         min_update=int(args.min_update),
         max_update=int(args.max_update),
         force=bool(args.force),
+        command_labels=args.command_labels,
     )
     print(f"[backfill] tasks={len(tasks)} models={','.join(models)} run_dir={run_dir}", flush=True)
     if not tasks:
@@ -124,6 +126,7 @@ def discover_backfill_tasks(
     min_update: int = 0,
     max_update: int = 0,
     force: bool = False,
+    command_labels: str | list[str] | tuple[str, ...] | None = None,
 ) -> list[BackfillTask]:
     """Return checkpoint eval tasks that still need dashboard-ready outputs.
 
@@ -140,17 +143,22 @@ def discover_backfill_tasks(
                 continue
             if int(max_update) > 0 and update > int(max_update):
                 continue
-            if not bool(force) and checkpoint_eval_complete(root, model_type, update):
+            if not bool(force) and checkpoint_eval_complete(root, model_type, update, command_labels=command_labels):
                 continue
             tasks.append(BackfillTask(model_type=model_type, checkpoint=record.path.as_posix(), checkpoint_update=update))
     model_order = {"mlp": 0, "txl": 1}
     return sorted(tasks, key=lambda task: (int(task.checkpoint_update), model_order[task.model_type]))
 
 
-def checkpoint_eval_complete(run_dir: str | Path, model_type: str, checkpoint_update: int) -> bool:
+def checkpoint_eval_complete(
+    run_dir: str | Path,
+    model_type: str,
+    checkpoint_update: int,
+    command_labels: str | list[str] | tuple[str, ...] | None = None,
+) -> bool:
     """Return whether dashboard eval output is complete for one checkpoint.
 
-    A complete row must include reward metrics, test-set action loss, and all command MP4s.
+    A complete row must include reward, dataset loss, and selected command MP4s.
     """
     row = latest_eval_row(Path(run_dir) / "eval" / "metrics.jsonl", model_type, int(checkpoint_update))
     if row is None or "eval_reward_mean" not in row or row.get("eval_error"):
@@ -160,7 +168,7 @@ def checkpoint_eval_complete(run_dir: str | Path, model_type: str, checkpoint_up
     media_paths = row.get("media_paths")
     if not isinstance(media_paths, dict):
         return False
-    labels = {command.label for command in FIXED_EVAL_COMMANDS}
+    labels = {command.label for command in select_eval_commands(command_labels)}
     if labels - set(str(label) for label in media_paths):
         return False
     root = Path(run_dir)
@@ -211,6 +219,7 @@ def evaluate_backfill_task(config: dict[str, Any], task_dict: dict[str, Any]) ->
             gif_height=int(config["media_height"]),
             eval_index=0,
             seed=int(config["seed"]) + int(task.checkpoint_update),
+            command_labels=config.get("command_labels", "vx03"),
         )
         row = aggregate_eval_rows(rows, task.model_type, int(task.checkpoint_update))
         row.update(_dataset_action_metrics(config, task))
