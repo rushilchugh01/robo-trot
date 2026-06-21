@@ -793,6 +793,43 @@ def test_eval_gif_writer_normalizes_legacy_gif_paths_to_mp4(tmp_path):
     assert stream["height"] % 2 == 0
 
 
+def test_eval_mp4_writer_pads_short_rollout_to_requested_duration(tmp_path):
+    """Eval MP4 writer repeats the final frame for early-fall rollouts."""
+    import subprocess
+
+    from robo_trot.training.evaluate_checkpoint import _write_mp4
+
+    output = tmp_path / "fallen_policy.mp4"
+    frames = [
+        np.zeros((6, 8, 3), dtype=np.uint8),
+        np.full((6, 8, 3), 255, dtype=np.uint8),
+    ]
+
+    _write_mp4(output, frames, fps=10, min_frame_count=80)
+
+    probe = json.loads(
+        subprocess.check_output(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_name,pix_fmt,duration",
+                "-of",
+                "json",
+                output.as_posix(),
+            ],
+            text=True,
+        )
+    )
+    stream = probe["streams"][0]
+    assert stream["codec_name"] == "h264"
+    assert stream["pix_fmt"] == "yuv420p"
+    assert float(stream["duration"]) >= 7.5
+
+
 def test_checkpoint_eval_set_uses_mp4_media_directory(monkeypatch, tmp_path):
     """Checkpoint-set eval writes command media under eval/media as MP4 files."""
     import robo_trot.training.evaluate_checkpoint as module

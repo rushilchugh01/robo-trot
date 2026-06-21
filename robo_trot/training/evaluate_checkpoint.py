@@ -239,7 +239,8 @@ def run_policy_eval_episode(
 
     media_path_value: str | None = None
     if media_path is not None and frames:
-        _write_mp4(media_path, frames, fps=max(1, int(gif_fps)))
+        target_frame_count = (render_steps_target + render_every - 1) // render_every if render_steps_target > 0 else 0
+        _write_mp4(media_path, frames, fps=max(1, int(gif_fps)), min_frame_count=target_frame_count)
         media_path_value = media_path.as_posix()
     survived_seconds = len(reward_rows) * float(env.policy_dt)
     term_summary = summarize_reward_terms(reward_rows)
@@ -548,14 +549,15 @@ def _gif_output_path(path: str | Path | None) -> Path | None:
     return _media_output_path(path)
 
 
-def _write_mp4(path: Path, frames: list[np.ndarray], fps: int) -> None:
+def _write_mp4(path: Path, frames: list[np.ndarray], fps: int, min_frame_count: int = 0) -> None:
     """Encode RGB frames as browser-compatible H.264 MP4 media.
 
-    ffmpeg pads odd dimensions, writes yuv420p pixels, and moves metadata up front.
+    Short fall rollouts are padded with the final frame before encoding.
     """
     prepared = [_as_rgb_frame(frame) for frame in frames]
     if not prepared:
         return
+    prepared = _pad_frames_to_count(prepared, int(min_frame_count))
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:
         raise RuntimeError("ffmpeg is required to encode checkpoint eval MP4 media")
@@ -614,6 +616,19 @@ def _write_mp4(path: Path, frames: list[np.ndarray], fps: int) -> None:
         if path.exists():
             path.unlink()
         raise RuntimeError(f"ffmpeg failed to encode MP4 media: {stderr.strip()}")
+
+
+def _pad_frames_to_count(frames: list[np.ndarray], min_frame_count: int) -> list[np.ndarray]:
+    """Return frames padded by repeating the final image when needed.
+
+    This keeps failed policy videos dashboard-playable for the requested duration.
+    """
+    target = max(0, int(min_frame_count))
+    if not frames or len(frames) >= target:
+        return frames
+    padded = list(frames)
+    padded.extend([frames[-1]] * (target - len(frames)))
+    return padded
 
 
 def _write_gif(path: Path, frames: list[np.ndarray], fps: int) -> None:
