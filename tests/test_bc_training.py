@@ -224,6 +224,48 @@ def test_evaluator_waits_for_backlog_after_training_completion(tmp_path):
     )
 
 
+def test_backfill_discovers_missing_checkpoint_evals(tmp_path):
+    """Backfill discovery returns complete checkpoint dirs without eval outputs."""
+    from robo_trot.training.checkpointing import save_checkpoint_atomic
+    from robo_trot.training.eval_backfill import discover_backfill_tasks
+
+    save_checkpoint_atomic(tmp_path / "mlp" / "checkpoints" / "step_000000100", metadata={"model": "mlp", "update": 100})
+    save_checkpoint_atomic(tmp_path / "mlp" / "checkpoints" / "step_000000200", metadata={"model": "mlp", "update": 200})
+    save_checkpoint_atomic(tmp_path / "txl" / "checkpoints" / "step_000000100", metadata={"model": "txl", "update": 100})
+
+    tasks = discover_backfill_tasks(tmp_path, models=("mlp",), eval_every=100, max_update=150)
+
+    assert [(task.model_type, task.checkpoint_update) for task in tasks] == [("mlp", 100)]
+
+
+def test_backfill_skips_complete_eval_rows_with_media(tmp_path):
+    """Backfill discovery skips checkpoints with reward, dataset loss, and MP4s."""
+    from robo_trot.training.checkpointing import save_checkpoint_atomic
+    from robo_trot.training.eval_backfill import checkpoint_eval_complete, discover_backfill_tasks
+    from robo_trot.training.evaluate_checkpoint import FIXED_EVAL_COMMANDS
+
+    save_checkpoint_atomic(tmp_path / "mlp" / "checkpoints" / "step_000000100", metadata={"model": "mlp", "update": 100})
+    media_paths = {}
+    for command in FIXED_EVAL_COMMANDS:
+        media = tmp_path / "eval" / "media" / "step_000000100" / f"mlp_{command.label}.mp4"
+        media.parent.mkdir(parents=True, exist_ok=True)
+        media.write_bytes(b"mp4")
+        media_paths[command.label] = media.relative_to(tmp_path).as_posix()
+    metrics = {
+        "model_type": "mlp",
+        "checkpoint_update": 100,
+        "eval_reward_mean": 1.0,
+        "dataset_eval_action_mse": 0.1,
+        "media_paths": media_paths,
+    }
+    (tmp_path / "eval" / "metrics.jsonl").write_text(json.dumps(metrics) + "\n")
+
+    tasks = discover_backfill_tasks(tmp_path, models=("mlp",), eval_every=100)
+
+    assert checkpoint_eval_complete(tmp_path, "mlp", 100)
+    assert tasks == []
+
+
 def test_eval_reward_terms_are_logged_separately():
     """Reward computation returns a scalar total plus named diagnostic terms."""
     from robo_trot.training.eval_reward import compute_eval_reward
@@ -387,6 +429,31 @@ def test_checkpoint_eval_script_exposes_save_media_alias():
 
     assert args.save_media == "rollout.mp4"
     assert args.save_gif is None
+
+
+def test_backfill_checkpoint_eval_script_exposes_ray_flags():
+    """The checkpoint backfill CLI exposes Ray and MP4 rendering controls."""
+    from scripts.policy.backfill_checkpoint_eval import parse_args
+
+    args = parse_args(
+        [
+            "--run_dir",
+            "runs/bc_scratch_100k_v002",
+            "--models",
+            "mlp",
+            "--max_update",
+            "100000",
+            "--ray",
+        ]
+    )
+
+    assert args.models == "mlp"
+    assert args.eval_every == 100
+    assert args.workers == 4
+    assert args.media_seconds == 10.0
+    assert args.media_fps == 30
+    assert args.ray
+    assert args.ray_address == "auto"
 
 
 def test_dashboard_html_is_client_app_shell(tmp_path):
