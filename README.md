@@ -25,6 +25,13 @@ Scripts are grouped by purpose under `scripts/`; the root `scripts/` directory o
 
 The `data/*.py` files are CLI wrappers around `robo_trot.data_pipeline.*`, kept so existing data-generation commands continue to work.
 
+Install the training extra before running BC trainers:
+
+```bash
+pip install -e ".[train]"
+pip install -e ".[ray]"  # only needed for --ray / JOVA mode
+```
+
 ## Quick Commands
 
 ```bash
@@ -39,6 +46,33 @@ python scripts/policy/sanity_check_random_policy.py \
 python scripts/policy/audit_action_mapping.py \
   --xml_path assets/mujoco_menagerie/unitree_a1/scene.xml \
   --dataset_metadata datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json
+python scripts/policy/parallel_train_bc.py \
+  --dataset_dir datasets/a1_teacher_flat_7m_v001_main \
+  --out_dir runs/bc_compare_v001 \
+  --mlp_workers 4 \
+  --txl_workers 4 \
+  --eval_workers 1 \
+  --mlp_cores 0,1 \
+  --txl_cores 2,3 \
+  --batch_size 4096 \
+  --sequence_length 64 \
+  --txl_memory_seconds 20.0 \
+  --lr 3e-4 \
+  --max_updates 200000 \
+  --metrics_every 100 \
+  --checkpoint_every 1000 \
+  --eval_every 1000 \
+  --gif_every_eval 1 \
+  --dashboard \
+  --dashboard_host 0.0.0.0 \
+  --dashboard_port 8002
+python scripts/policy/serve_training_dashboard.py \
+  --run_dir runs/bc_compare_v001 \
+  --host 0.0.0.0 \
+  --port 8002
+scripts/policy/launch_bc_training.sh start
+scripts/policy/launch_bc_training.sh status
+scripts/policy/launch_bc_training.sh tail
 python scripts/policy/play_random_policy.py \
   --xml_path assets/mujoco_menagerie/unitree_a1/scene.xml \
   --dataset_metadata datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json \
@@ -80,6 +114,47 @@ Run `scripts/policy/audit_action_mapping.py` when changing the environment, mode
 Use `--no_viewer` for headless checks and omit it to watch the robot move live in the MuJoCo viewer.
 
 For visual joint-order debugging, use `--policy_mode joint_probe` to sweep one selected joint, or `--policy_mode joint_scan` to sweep through all 12 joints one at a time. For stronger coherent whole-body motion, use `--policy_mode flail`; lower `--flail_amplitude` if the robot falls too quickly.
+
+## Behavior Cloning Comparison
+
+`scripts/policy/parallel_train_bc.py` trains MLP and TXL policies concurrently from the teacher dataset. The default local layout starts four MLP workers pinned to cores `0,1`, four TXL workers pinned to cores `2,3`, one evaluator process, and an optional dashboard at `0.0.0.0:8002`.
+
+For normal local operation, use `scripts/policy/launch_bc_training.sh start`. It starts or connects to Ray, launches the all-in-one orchestrator in the background with the default MLP group, TXL group, evaluator process, and dashboard, writes logs to `runs/bc_compare_v001/logs/`, and passes `--resume` so rerunning it continues from latest complete checkpoints when present. The launcher owns runtime control; the Python trainer owns Ray scheduling with two `num_cpus=2` training tasks and a separate MuJoCo evaluator task.
+
+The launcher defaults to `USE_RAY=1`. If `ray status` cannot reach a cluster and `RAY_START_LOCAL=1`, it starts a local four-CPU Ray head with `ray start --head --block`, records `ray_head.pid`, and keeps that process alive for the run. Set `RAY_ADDRESS=auto` for the normal JOVA/Ray resolver path, or set `USE_RAY=0` to use the multiprocessing fallback.
+
+The MLP uses transition batches: `obs_t -> action_label_t`. The TXL trains on streamed contiguous episode chunks, carries detached Transformer-XL memory from chunk to chunk, and resets memory only at true episode boundaries. The dataset `reset_flag` remains available as trial metadata, but it does not clear TXL memory by itself. Sequences never cross episode file boundaries, padded tail tokens are masked out of loss and memory, and per-stream cache validity prevents memory leakage when one stream is replaced. By default `--txl_memory_seconds 20.0` with `--policy_dt 0.02` creates a 1000-token memory, so rollout/eval memory spans 20 seconds at 50 Hz. `--sequence_length` still controls the supervised chunk length used for each BC update.
+
+`--batch_size` is interpreted as the training-group sample/token budget and is sharded across worker processes. For example, `--batch_size 4096 --txl_workers 8 --sequence_length 64` gives each TXL worker 512 supervised tokens, or eight 64-step streams, per asynchronous update. This keeps all workers active while leaving memory headroom for the MuJoCo evaluator.
+
+Checkpoints are written atomically under `runs/<name>/{mlp,txl}/checkpoints/step_000001000/`, with `latest`, `best_val_loss`, and `best_eval_reward` aliases. Evaluation watches complete checkpoints, runs fixed MuJoCo commands, writes reward metrics under `eval/metrics.jsonl`, saves browser-compatible H.264 MP4 previews under `eval/media/step_*/`, records the first 10 seconds of each command by default, and logs held-out dataset action-label diagnostics with `dataset_eval_action_mse`, `dataset_eval_action_l1`, and `dataset_eval_split`. Legacy GIF rows under `eval/gifs/step_*/` are still read for existing runs.
+
+BC optimizes supervised action MSE only. Reward is computed during checkpoint evaluation so model selection compares validation loss, MuJoCo reward, survival, yaw response, velocity tracking, smoothness, foot slip, and rollout media quality instead of trusting loss alone.
+
+The dashboard is served without browser auto-refresh; reload from the client when needed. The backend exposes `/api/summary`, `/api/train-metrics`, `/api/eval-metrics`, and `/api/gifs`, while the browser renders separate MLP/TXL panels, Plotly zoom/pan loss curves, MuJoCo reward curves, held-out action MSE curves, latest eval media, and model-separated historical media galleries for every evaluated command. MP4/WebM clips render as autoplaying muted looping `<video>` elements; legacy GIF/WebP rows render as image fallbacks.
+
+Standalone checkpoint evaluation:
+
+```bash
+python scripts/policy/evaluate_checkpoint.py \
+  --checkpoint runs/bc_compare_v001/mlp/checkpoints/latest \
+  --model mlp \
+  --xml_path assets/mujoco_menagerie/unitree_a1/scene.xml \
+  --dataset_metadata datasets/a1_teacher_flat_7m_v001_main/shards/shard_00_forward/metadata.json \
+  --dataset_dir datasets/a1_teacher_flat_7m_v001_main \
+  --dataset_eval_split test \
+  --seconds 20 \
+  --command 0.5 0.0 0.0 \
+  --save_media runs/bc_compare_v001/eval/manual_mlp_vx05.mp4
+
+# Legacy .gif names and --save_gif are accepted, but output is redirected to .mp4.
+
+python scripts/policy/evaluate_checkpoint.py \
+  --checkpoint runs/bc_compare_v001/txl/checkpoints/latest \
+  --model txl \
+  --viewer \
+  --seconds 20
+```
 
 ## Acceptance Gates
 

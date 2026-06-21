@@ -14,6 +14,12 @@ dependencies = [
 dev = [
   "pytest>=8.0",
 ]
+train = [
+  "torch>=2.3",
+]
+ray = [
+  "ray>=2.9",
+]
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
