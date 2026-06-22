@@ -252,7 +252,7 @@ def run_policy_eval_episode(
             prev_reward = float(reward.total)
             prev_foot_pos = np.asarray(info.get("foot_pos"), dtype=np.float32).copy() if "foot_pos" in info else None
             reset_flag = False
-            phase = float(phase + 2.0 * np.pi * env.policy_dt)
+            phase = advance_command_phase(phase, command, env.policy_dt)
             if done:
                 done_reason = str(info.get("done_reason", "done"))
                 break
@@ -276,6 +276,33 @@ def run_policy_eval_episode(
         reward_terms=term_summary,
         media_path=media_path_value,
     )
+
+
+def advance_command_phase(phase: float, command: np.ndarray, policy_dt: float) -> float:
+    """Advance the gait phase with the teacher CPG frequency law.
+
+    The dataset records phase from `FootspaceCPGIKTeacher.compute`, whose
+    frequency is speed-dependent rather than the fixed 1 Hz clock used before.
+    """
+    frequency = command_phase_frequency(command)
+    return float((float(phase) + 2.0 * np.pi * frequency * float(policy_dt)) % (2.0 * np.pi))
+
+
+def command_phase_frequency(command: np.ndarray) -> float:
+    """Return the teacher CPG phase frequency for a command.
+
+    This mirrors `FootspaceCPGIKTeacher.frequency` without constructing a teacher.
+    """
+    values = np.asarray(command, dtype=np.float32).reshape(3)
+    vx = float(values[0])
+    yaw = float(values[2])
+    if abs(vx) / 0.7 < 0.08 and abs(yaw) / 0.4 < 0.1:
+        return 0.0
+    base_freq = 1.6
+    max_freq = 2.8
+    speed_ref = 1.1
+    scale = float(np.clip(abs(vx) / speed_ref, 0.0, 1.0))
+    return float(base_freq + (max_freq - base_freq) * scale)
 
 
 def evaluate_checkpoint_set(

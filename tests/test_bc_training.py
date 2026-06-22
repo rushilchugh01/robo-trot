@@ -327,6 +327,20 @@ def test_eval_command_selector_filters_fixed_commands():
     assert len(select_eval_commands("all")) == 5
 
 
+def test_eval_phase_advances_with_teacher_command_frequency():
+    """Checkpoint eval phase follows the teacher CPG command frequency."""
+    from robo_trot.training.evaluate_checkpoint import advance_command_phase, command_phase_frequency
+
+    command = np.array([0.3, 0.0, 0.0], dtype=np.float32)
+    frequency = command_phase_frequency(command)
+    next_phase = advance_command_phase(0.0, command, policy_dt=0.02)
+
+    assert frequency == pytest.approx(1.9272727, rel=1e-6)
+    assert next_phase == pytest.approx(2.0 * np.pi * frequency * 0.02, rel=1e-6)
+    assert frequency != pytest.approx(1.0)
+    assert command_phase_frequency(np.zeros(3, dtype=np.float32)) == pytest.approx(0.0)
+
+
 def test_eval_reward_terms_are_logged_separately():
     """Reward computation returns a scalar total plus named diagnostic terms."""
     from robo_trot.training.eval_reward import compute_eval_reward
