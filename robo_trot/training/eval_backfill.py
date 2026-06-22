@@ -68,6 +68,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--sequence_length", type=int, default=64)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--latest_first", action="store_true")
     parser.add_argument("--ray", action="store_true")
     parser.add_argument("--ray_address", default="auto")
     return parser.parse_args(argv)
@@ -99,7 +100,9 @@ def run_backfill(args: argparse.Namespace) -> list[dict[str, Any]]:
         force=bool(args.force),
         command_labels=args.command_labels,
     )
-    print(f"[backfill] tasks={len(tasks)} models={','.join(models)} run_dir={run_dir}", flush=True)
+    tasks = order_backfill_tasks(tasks, latest_first=bool(getattr(args, "latest_first", False)))
+    order = "newest" if bool(getattr(args, "latest_first", False)) else "oldest"
+    print(f"[backfill] tasks={len(tasks)} order={order} models={','.join(models)} run_dir={run_dir}", flush=True)
     if not tasks:
         return []
     config = vars(args).copy()
@@ -149,8 +152,17 @@ def discover_backfill_tasks(
             if not bool(force) and checkpoint_eval_complete(root, model_type, update, command_labels=command_labels):
                 continue
             tasks.append(BackfillTask(model_type=model_type, checkpoint=record.path.as_posix(), checkpoint_update=update))
+    return order_backfill_tasks(tasks, latest_first=False)
+
+
+def order_backfill_tasks(tasks: list[BackfillTask], latest_first: bool = False) -> list[BackfillTask]:
+    """Return checkpoint tasks in a deterministic render order.
+
+    Newest-first mode keeps live TXL renders focused on the latest checkpoints.
+    """
     model_order = {"mlp": 0, "txl": 1}
-    return sorted(tasks, key=lambda task: (int(task.checkpoint_update), model_order[task.model_type]))
+    update_sign = -1 if bool(latest_first) else 1
+    return sorted(tasks, key=lambda task: (update_sign * int(task.checkpoint_update), model_order[task.model_type]))
 
 
 def checkpoint_eval_complete(

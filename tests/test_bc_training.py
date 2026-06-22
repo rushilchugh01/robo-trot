@@ -252,6 +252,21 @@ def test_backfill_chunks_tasks_for_worker_reuse(tmp_path):
     assert [[task.checkpoint_update for task in chunk] for chunk in chunks] == [[0, 1], [2, 3], [4]]
 
 
+def test_backfill_can_order_latest_checkpoints_first():
+    """Backfill ordering can prioritize fresh live-training checkpoints."""
+    from robo_trot.training.eval_backfill import BackfillTask, order_backfill_tasks
+
+    tasks = [
+        BackfillTask(model_type="txl", checkpoint="step_100", checkpoint_update=100),
+        BackfillTask(model_type="txl", checkpoint="step_300", checkpoint_update=300),
+        BackfillTask(model_type="txl", checkpoint="step_200", checkpoint_update=200),
+    ]
+
+    ordered = order_backfill_tasks(tasks, latest_first=True)
+
+    assert [task.checkpoint_update for task in ordered] == [300, 200, 100]
+
+
 def test_backfill_skips_complete_eval_rows_with_media(tmp_path):
     """Backfill discovery skips checkpoints with reward, dataset loss, and MP4s."""
     from robo_trot.training.checkpointing import save_checkpoint_atomic
@@ -489,6 +504,7 @@ def test_backfill_checkpoint_eval_script_exposes_ray_flags():
             "mlp",
             "--max_update",
             "100000",
+            "--latest_first",
             "--ray",
         ]
     )
@@ -498,6 +514,7 @@ def test_backfill_checkpoint_eval_script_exposes_ray_flags():
     assert args.workers == 4
     assert args.chunk_size == 8
     assert args.command_labels == "vx03"
+    assert args.latest_first
     assert args.media_seconds == 10.0
     assert args.media_fps == 30
     assert args.ray
